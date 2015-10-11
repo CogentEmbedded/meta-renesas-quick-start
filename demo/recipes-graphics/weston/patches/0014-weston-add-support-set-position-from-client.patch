@@ -1,0 +1,14 @@
+diff --git a/desktop-shell/shell.c b/desktop-shell/shell.c
+index 84f5c83..b7fe8d6 100644
+--- a/desktop-shell/shell.c
++++ b/desktop-shell/shell.c
+@@ -2606,6 +2606,9 @@ set_surface_type(struct shell_surface *shsurf)
+ 						 pev->geometry.x + shsurf->transient.x,
+ 						 pev->geometry.y + shsurf->transient.y);
+ 		}
++		weston_view_set_position(shsurf->view,
++					 shsurf->transient.x,
++					 shsurf->transient.y);
+ 		break;
+ 
+ 	case SHELL_SURFACE_XWAYLAND:

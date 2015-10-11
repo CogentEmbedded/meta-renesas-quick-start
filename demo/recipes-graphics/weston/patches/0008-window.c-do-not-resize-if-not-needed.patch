@@ -1,0 +1,50 @@
+From b1d3f50210cef4f7c1bc5bedfa9d8020f35f4a42 Mon Sep 17 00:00:00 2001
+From: Andrey Dolnikov <andrey.dolnikov@cogentembedded.com>
+Date: Wed, 6 May 2015 13:28:47 +0300
+Subject: [PATCH] window.c: do not resize if not needed.
+
+---
+ clients/window.c | 13 ++++++++++---
+ 1 file changed, 10 insertions(+), 3 deletions(-)
+
+diff --git a/clients/window.c b/clients/window.c
+index 182e101..5ee78f0 100644
+--- a/clients/window.c
++++ b/clients/window.c
+@@ -494,6 +494,7 @@ struct egl_window_surface {
+ 	struct wl_surface *surface;
+ 	struct wl_egl_window *egl_window;
+ 	EGLSurface egl_surface;
++	int w, h;
+ };
+ 
+ static struct egl_window_surface *
+@@ -510,9 +511,12 @@ egl_window_surface_prepare(struct toysurface *base, int dx, int dy,
+ 	struct egl_window_surface *surface = to_egl_window_surface(base);
+ 
+ 	surface_to_buffer_size (buffer_transform, buffer_scale, &width, &height);
+-
+-	wl_egl_window_resize(surface->egl_window, width, height, dx, dy);
+-	cairo_gl_surface_set_size(surface->cairo_surface, width, height);
++	if (width != surface->w || height != surface->h) {
++		wl_egl_window_resize(surface->egl_window, width, height, dx, dy);
++		cairo_gl_surface_set_size(surface->cairo_surface, width, height);
++		surface->w = width;
++		surface->h = height;
++	}
+ 
+ 	return cairo_surface_reference(surface->cairo_surface);
+ }
+@@ -615,6 +619,9 @@ egl_window_surface_create(struct display *display,
+ 	surface->display = display;
+ 	surface->surface = wl_surface;
+ 
++	surface->w = rectangle->width;
++	surface->h = rectangle->height;
++
+ 	surface->egl_window = wl_egl_window_create(surface->surface,
+ 						   rectangle->width,
+ 						   rectangle->height);
+-- 
+1.9.1
+

@@ -1,0 +1,135 @@
+From 2ddd3df54b719a02d1af8dbd99b32cc361a551aa Mon Sep 17 00:00:00 2001
+From: Dmitry Cherkassov <dmitry.cherkasov@cogentembedded.com>
+Date: Wed, 28 Jan 2015 19:47:21 +0300
+Subject: [PATCH] Add gobject properties for fullscreen and display number
+
+---
+ ext/waylandfs/gstwaylandfssink.c | 38 +++++++++++++++++++++++++++++++++-----
+ ext/waylandfs/gstwaylandfssink.h |  6 ++++++
+ 2 files changed, 39 insertions(+), 5 deletions(-)
+
+diff --git a/ext/waylandfs/gstwaylandfssink.c b/ext/waylandfs/gstwaylandfssink.c
+index e96d56c..c3ff3fb 100644
+--- a/ext/waylandfs/gstwaylandfssink.c
++++ b/ext/waylandfs/gstwaylandfssink.c
+@@ -53,7 +53,9 @@ enum
+ enum
+ {
+   PROP_0,
+-  PROP_WAYLAND_DISPLAY
++  PROP_WAYLAND_DISPLAY,
++  PROP_FULLSCREEN,
++  PROP_OUTPUT_NUMBER
+ };
+ 
+ GST_DEBUG_CATEGORY (gstwayland_debug);
+@@ -152,6 +154,7 @@ static const wl_VideoFormat formats[] = {
+ };
+ 
+ static int fullscreen;
++static int output_number;
+ 
+ uint32_t
+ gst_wayland_format_to_wl_format (GstVideoFormat format)
+@@ -220,6 +223,16 @@ gst_wayland_sink_class_init (GstWaylandfsSinkClass * klass)
+       g_param_spec_pointer ("wayland-display", "Wayland Display",
+           "Wayland  Display handle created by the application ",
+           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
++
++  g_object_class_install_property (gobject_class, PROP_FULLSCREEN,
++      g_param_spec_boolean ("fullscreen", "Fullscreen",
++                            "Toggle fullscreen", FALSE,
++                            G_PARAM_READWRITE));
++
++  g_object_class_install_property (gobject_class, PROP_OUTPUT_NUMBER,
++      g_param_spec_int ("output-number", "Output Number",
++                        "Specify wayland display number for output", 0, MAX_OUTPUTS, 0,
++                        G_PARAM_READWRITE));
+ }
+ 
+ static void
+@@ -267,6 +280,15 @@ gst_wayland_sink_set_property (GObject * object,
+       sink->display->display = g_value_get_pointer (value);
+       sink->ext_display = TRUE;
+       break;
++
++    case PROP_FULLSCREEN:
++      sink->display->fullscreen = g_value_get_boolean (value);
++      break;
++
++    case PROP_OUTPUT_NUMBER:
++      sink->display->output_number = g_value_get_int (value);
++      break;
++
+     default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+       break;
+@@ -450,7 +472,7 @@ registry_handle_global (void *data, struct wl_registry *registry,
+     d->shm = wl_registry_bind (registry, id, &wl_shm_interface, 1);
+     wl_shm_add_listener (d->shm, &shm_listenter, d);
+   } else if (strcmp (interface, "wl_output") == 0) {
+-    d->output = wl_registry_bind (registry, id, &wl_output_interface, 1);       /* always last display */
++    d->outputs[d->output_count++] = wl_registry_bind (registry, id, &wl_output_interface, 1);       /* always last display */
+ #ifdef HAVE_WAYLAND_KMS
+   } else if (strcmp (interface, "wl_kms") == 0) {
+     d->wl_kms = wl_registry_bind (registry, id, &wl_kms_interface, version);
+@@ -536,6 +558,13 @@ create_display (GstWaylandfsSink * sink)
+     wl_shell_surface_add_listener (window->shell_surface,
+         &shell_surface_listener, window);
+ 
++    if (output_number < 0 || output_number >= display->output_count) {
++      printf ("wayland-fullscreen-sink: bad output number: %d\n", output_number);
++      return FALSE;
++    }
++
++    display->output = display->outputs[output_number];
++
+     if (fullscreen) {
+       wl_shell_surface_set_fullscreen (window->shell_surface,
+           WL_SHELL_SURFACE_FULLSCREEN_METHOD_DEFAULT, 0, display->output);
+@@ -765,9 +794,8 @@ gst_wayland_sink_start (GstBaseSink * bsink)
+ 
+   GST_DEBUG_OBJECT (sink, "start");
+ 
+-  env_full = getenv ("WAYLANDSINK_FULLSCREEN");
+-
+-  fullscreen = (env_full == NULL) ? 0 : atoi (env_full);
++  fullscreen = sink->display->fullscreen;
++  output_number = sink->display->output_number;
+ 
+   if (!create_display (sink)) {
+     GST_ELEMENT_ERROR (bsink, RESOURCE, OPEN_READ_WRITE,
+diff --git a/ext/waylandfs/gstwaylandfssink.h b/ext/waylandfs/gstwaylandfssink.h
+index 7409a53..0cb02ab 100644
+--- a/ext/waylandfs/gstwaylandfssink.h
++++ b/ext/waylandfs/gstwaylandfssink.h
+@@ -60,6 +60,8 @@
+ #define GST_WAYLAND_SINK_GET_CLASS(inst) \
+         (G_TYPE_INSTANCE_GET_CLASS ((inst), GST_TYPE_WAYLAND_SINK, GstWaylandfsSinkClass))
+ 
++#define MAX_OUTPUTS 10
++
+ struct  display
+ {
+   struct wl_display *display;
+@@ -68,6 +70,7 @@ struct  display
+   struct wl_shell *shell;
+   struct wl_shm *shm;
+   struct wl_output *output;
++  struct wl_output *outputs[MAX_OUTPUTS];
+   uint32_t formats;
+ #ifdef HAVE_WAYLAND_KMS
+   struct wl_kms *wl_kms;
+@@ -76,6 +79,9 @@ struct  display
+   gboolean authenticated;
+ #endif
+   struct wl_event_queue *wl_queue;
++  int output_count;
++  int fullscreen;
++  int output_number;
+ };
+ 
+ struct window
+-- 
+1.9.1
+

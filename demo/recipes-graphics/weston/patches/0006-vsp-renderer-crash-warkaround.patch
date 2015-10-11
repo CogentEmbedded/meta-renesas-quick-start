@@ -1,0 +1,19 @@
+diff --git a/src/vsp-renderer.c b/src/vsp-renderer.c
+index d8681e6..4474396 100644
+--- a/src/vsp-renderer.c
++++ b/src/vsp-renderer.c
+@@ -896,8 +896,12 @@ vsp_comp_flush(struct vsp_device *vsp)
+ 	DBG("flush vsp composition.\n");
+ 
+ 	// enable links and queue buffer
+-	for (i = 0; i < vsp->input_count; i++)
+-		vsp_comp_setup_inputs(vsp, &vsp->inputs[i], 1);
++	for (i = 0; i < vsp->input_count; i++) {
++		if (vsp_comp_setup_inputs(vsp, &vsp->inputs[i], 1) < 0) {
++			weston_log("Setup used input failed!\n");
++			goto error;
++		}
++	}
+ 
+ 	// disable unused inputs
+ 	for (i = vsp->input_count; i < vsp->input_max; i++)

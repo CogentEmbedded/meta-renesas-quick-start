@@ -1,0 +1,491 @@
+From 77832bc739eca95e475c09caf3cec2e1d83ef890 Mon Sep 17 00:00:00 2001
+From: Andrey Dolnikov <andrey.dolnikov@cogentembedded.com>
+Date: Fri, 30 Jan 2015 12:56:41 +0300
+Subject: [PATCH] wayland*sink: Update to 1.7.0
+
+---
+ ext/waylandfs/gstwaylandfssink.c           | 37 +++++++++++++++++++++++-------
+ ext/waylandfs/waylandpool.c                |  7 ++++++
+ ext/waylandmiracle/gstwaylandmiraclesink.c | 37 +++++++++++++++++++++++-------
+ ext/waylandmiracle/waylandpool.c           |  7 ++++++
+ ext/waylandwrl/gstwaylandwrlsink.c         | 37 +++++++++++++++++++++++-------
+ ext/waylandwrl/waylandpool.c               |  7 ++++++
+ 6 files changed, 108 insertions(+), 24 deletions(-)
+
+diff --git a/ext/waylandfs/gstwaylandfssink.c b/ext/waylandfs/gstwaylandfssink.c
+index c3ff3fb..88b175f 100644
+--- a/ext/waylandfs/gstwaylandfssink.c
++++ b/ext/waylandfs/gstwaylandfssink.c
+@@ -61,10 +61,20 @@ enum
+ GST_DEBUG_CATEGORY (gstwayland_debug);
+ #define GST_CAT_DEFAULT gstwayland_debug
+ 
++#if G_BYTE_ORDER == G_BIG_ENDIAN
++#define CAPS "{xRGB, ARGB}"
++#else
++#define CAPS "{BGRx, BGRA}"
++#endif
++
+ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
+     GST_PAD_SINK,
+     GST_PAD_ALWAYS,
++#ifdef HAVE_WAYLAND_KMS
+     GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE (GST_VIDEO_FORMATS_ALL))
++#else
++    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE (CAPS))
++#endif
+     );
+ 
+ /*Fixme: Add more interfaces */
+@@ -242,7 +252,9 @@ gst_wayland_sink_init (GstWaylandfsSink * sink)
+   if (!sink->display)
+     GST_ELEMENT_ERROR (sink, RESOURCE, NO_SPACE_LEFT,
+         ("Could not allocate display"), ("Could not allocate display"));
++#ifdef HAVE_WAYLAND_KMS
+   sink->display->drm_fd = -1;
++#endif
+ 
+   sink->window = NULL;
+   sink->shm_pool = NULL;
+@@ -312,11 +324,10 @@ destroy_display (struct display *display, gboolean ext_display)
+     if (!ext_display)
+       wl_display_disconnect (display->display);
+   }
+-
++#ifdef HAVE_WAYLAND_KMS
+   if (display->drm_fd >= 0)
+     close (display->drm_fd);
+-
+-  g_free (display);
++#endif
+ }
+ 
+ static void
+@@ -346,10 +357,8 @@ gst_wayland_sink_finalize (GObject * object)
+ 
+   GST_DEBUG_OBJECT (sink, "Finalizing the sink..");
+ 
+-  if (sink->window)
+-    destroy_window (sink->window);
+-  if (sink->display)
+-    destroy_display (sink->display, sink->ext_display);
++  g_free (sink->display);
++
+   if (sink->shm_pool)
+     shm_pool_destroy (sink->shm_pool);
+ 
+@@ -718,8 +727,10 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
+   }
+ 
+   structure = gst_buffer_pool_get_config (newpool);
++#ifdef HAVE_WAYLAND_KMS
+   gst_structure_set (structure, "videosink_buffer_creation_request_supported",
+       G_TYPE_BOOLEAN, TRUE, NULL);
++#endif
+   gst_buffer_pool_config_set_params (structure, caps, size,
+       GST_WAYLAND_BUFFER_POOL_NUM, GST_WAYLAND_BUFFER_POOL_NUM);
+   gst_buffer_pool_config_set_allocator (structure, NULL, &params);
+@@ -824,8 +835,16 @@ gst_wayland_sink_stop (GstBaseSink * bsink)
+     sink->pool = NULL;
+   }
+ 
++  if (sink->window)
++    destroy_window (sink->window);
++  if (sink->display)
++    destroy_display (display, sink->ext_display);
++
++#ifdef HAVE_WAYLAND_KMS
+   g_list_free_full (display->support_fmt_list,
+       (GDestroyNotify) kms_color_fmt_free);
++  display->support_fmt_list = NULL;
++#endif
+ 
+   return TRUE;
+ }
+@@ -841,8 +860,8 @@ gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
+   gboolean need_pool;
+ #ifdef HAVE_WAYLAND_KMS
+   GstAllocator *allocator;
+-  GstAllocationParams params;
+ #endif
++  GstAllocationParams params;
+ 
+ #ifdef HAVE_WAYLAND_KMS
+   gst_allocation_params_init (&params);
+@@ -1098,7 +1117,9 @@ activate_failed:
+ static gboolean
+ gst_wayland_sink_query (GstBaseSink * bsink, GstQuery * query)
+ {
++#ifdef HAVE_WAYLAND_KMS
+   GstWaylandfsSink *sink = GST_WAYLAND_SINK (bsink);
++#endif
+   gboolean ret = FALSE;
+ 
+   switch (GST_QUERY_TYPE (query)) {
+diff --git a/ext/waylandfs/waylandpool.c b/ext/waylandfs/waylandpool.c
+index f407c3c..3be8982 100644
+--- a/ext/waylandfs/waylandpool.c
++++ b/ext/waylandfs/waylandpool.c
+@@ -147,6 +147,7 @@ gst_wayland_buffer_pool_create_buffer_from_dmabuf (GstWaylandBufferPool * wpool,
+   }
+ 
+   wmeta->data = NULL;
++  wmeta->kms_bo = NULL;
+ 
+   gst_buffer_add_video_meta_full (buffer, GST_VIDEO_FRAME_FLAG_NONE, format,
+       width, height, n_planes, offset, stride);
+@@ -175,9 +176,11 @@ wayland_buffer_pool_set_config (GstBufferPool * pool, GstStructure * config)
+   GstVideoInfo info;
+   GstCaps *caps;
+ 
++#ifdef HAVE_WAYLAND_KMS
+   if (wpool->allocator)
+     gst_object_unref (wpool->allocator);
+   wpool->allocator = NULL;
++#endif
+ 
+   if (!gst_buffer_pool_config_get_params (config, &caps, NULL, NULL, NULL))
+     goto wrong_config;
+@@ -209,11 +212,13 @@ wayland_buffer_pool_set_config (GstBufferPool * pool, GstStructure * config)
+ 
+   return GST_BUFFER_POOL_CLASS (parent_class)->set_config (pool, config);
+   /* ERRORS */
++#ifdef HAVE_WAYLAND_KMS
+ wrong_allocator:
+   {
+     GST_WARNING_OBJECT (pool, "no allocator");
+     return FALSE;
+   }
++#endif
+ wrong_config:
+   {
+     GST_WARNING_OBJECT (pool, "invalid config");
+@@ -500,7 +505,9 @@ gst_wayland_buffer_pool_class_init (GstWaylandBufferPoolClass * klass)
+ static void
+ gst_wayland_buffer_pool_init (GstWaylandBufferPool * pool)
+ {
++#ifdef HAVE_WAYLAND_KMS
+   pool->kms = NULL;
++#endif
+ }
+ 
+ static void
+diff --git a/ext/waylandmiracle/gstwaylandmiraclesink.c b/ext/waylandmiracle/gstwaylandmiraclesink.c
+index 242c34f..5b9c4f8 100644
+--- a/ext/waylandmiracle/gstwaylandmiraclesink.c
++++ b/ext/waylandmiracle/gstwaylandmiraclesink.c
+@@ -59,10 +59,20 @@ enum
+ GST_DEBUG_CATEGORY (gstwayland_debug);
+ #define GST_CAT_DEFAULT gstwayland_debug
+ 
++#if G_BYTE_ORDER == G_BIG_ENDIAN
++#define CAPS "{xRGB, ARGB}"
++#else
++#define CAPS "{BGRx, BGRA}"
++#endif
++
+ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
+     GST_PAD_SINK,
+     GST_PAD_ALWAYS,
++#ifdef HAVE_WAYLAND_KMS
+     GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE (GST_VIDEO_FORMATS_ALL))
++#else
++    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE (CAPS))
++#endif
+     );
+ 
+ /*Fixme: Add more interfaces */
+@@ -229,7 +239,9 @@ gst_wayland_sink_init (GstWaylandmiracleSink * sink)
+   if (!sink->display)
+     GST_ELEMENT_ERROR (sink, RESOURCE, NO_SPACE_LEFT,
+         ("Could not allocate display"), ("Could not allocate display"));
++#ifdef HAVE_WAYLAND_KMS
+   sink->display->drm_fd = -1;
++#endif
+ 
+   sink->window = NULL;
+   sink->shm_pool = NULL;
+@@ -290,11 +302,10 @@ destroy_display (struct display *display, gboolean ext_display)
+     if (!ext_display)
+       wl_display_disconnect (display->display);
+   }
+-
++#ifdef HAVE_WAYLAND_KMS
+   if (display->drm_fd >= 0)
+     close (display->drm_fd);
+-
+-  g_free (display);
++#endif
+ }
+ 
+ static void
+@@ -324,10 +335,8 @@ gst_wayland_sink_finalize (GObject * object)
+ 
+   GST_DEBUG_OBJECT (sink, "Finalizing the sink..");
+ 
+-  if (sink->window)
+-    destroy_window (sink->window);
+-  if (sink->display)
+-    destroy_display (sink->display, sink->ext_display);
++  g_free (sink->display);
++
+   if (sink->shm_pool)
+     shm_pool_destroy (sink->shm_pool);
+ 
+@@ -689,8 +698,10 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
+   }
+ 
+   structure = gst_buffer_pool_get_config (newpool);
++#ifdef HAVE_WAYLAND_KMS
+   gst_structure_set (structure, "videosink_buffer_creation_request_supported",
+       G_TYPE_BOOLEAN, TRUE, NULL);
++#endif
+   gst_buffer_pool_config_set_params (structure, caps, size,
+       GST_WAYLAND_BUFFER_POOL_NUM, GST_WAYLAND_BUFFER_POOL_NUM);
+   gst_buffer_pool_config_set_allocator (structure, NULL, &params);
+@@ -796,8 +807,16 @@ gst_wayland_sink_stop (GstBaseSink * bsink)
+     sink->pool = NULL;
+   }
+ 
++  if (sink->window)
++    destroy_window (sink->window);
++  if (sink->display)
++    destroy_display (display, sink->ext_display);
++
++#ifdef HAVE_WAYLAND_KMS
+   g_list_free_full (display->support_fmt_list,
+       (GDestroyNotify) kms_color_fmt_free);
++  display->support_fmt_list = NULL;
++#endif
+ 
+   return TRUE;
+ }
+@@ -813,8 +832,8 @@ gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
+   gboolean need_pool;
+ #ifdef HAVE_WAYLAND_KMS
+   GstAllocator *allocator;
+-  GstAllocationParams params;
+ #endif
++  GstAllocationParams params;
+ 
+ #ifdef HAVE_WAYLAND_KMS
+   gst_allocation_params_init (&params);
+@@ -1070,7 +1089,9 @@ activate_failed:
+ static gboolean
+ gst_wayland_sink_query (GstBaseSink * bsink, GstQuery * query)
+ {
++#ifdef HAVE_WAYLAND_KMS
+   GstWaylandmiracleSink *sink = GST_WAYLAND_SINK (bsink);
++#endif
+   gboolean ret = FALSE;
+ 
+   switch (GST_QUERY_TYPE (query)) {
+diff --git a/ext/waylandmiracle/waylandpool.c b/ext/waylandmiracle/waylandpool.c
+index 2b7b540..b048a26 100644
+--- a/ext/waylandmiracle/waylandpool.c
++++ b/ext/waylandmiracle/waylandpool.c
+@@ -147,6 +147,7 @@ gst_wayland_buffer_pool_create_buffer_from_dmabuf (GstWaylandBufferPool * wpool,
+   }
+ 
+   wmeta->data = NULL;
++  wmeta->kms_bo = NULL;
+ 
+   gst_buffer_add_video_meta_full (buffer, GST_VIDEO_FRAME_FLAG_NONE, format,
+       width, height, n_planes, offset, stride);
+@@ -175,9 +176,11 @@ wayland_buffer_pool_set_config (GstBufferPool * pool, GstStructure * config)
+   GstVideoInfo info;
+   GstCaps *caps;
+ 
++#ifdef HAVE_WAYLAND_KMS
+   if (wpool->allocator)
+     gst_object_unref (wpool->allocator);
+   wpool->allocator = NULL;
++#endif
+ 
+   if (!gst_buffer_pool_config_get_params (config, &caps, NULL, NULL, NULL))
+     goto wrong_config;
+@@ -209,11 +212,13 @@ wayland_buffer_pool_set_config (GstBufferPool * pool, GstStructure * config)
+ 
+   return GST_BUFFER_POOL_CLASS (parent_class)->set_config (pool, config);
+   /* ERRORS */
++#ifdef HAVE_WAYLAND_KMS
+ wrong_allocator:
+   {
+     GST_WARNING_OBJECT (pool, "no allocator");
+     return FALSE;
+   }
++#endif
+ wrong_config:
+   {
+     GST_WARNING_OBJECT (pool, "invalid config");
+@@ -500,7 +505,9 @@ gst_wayland_buffer_pool_class_init (GstWaylandBufferPoolClass * klass)
+ static void
+ gst_wayland_buffer_pool_init (GstWaylandBufferPool * pool)
+ {
++#ifdef HAVE_WAYLAND_KMS
+   pool->kms = NULL;
++#endif
+ }
+ 
+ static void
+diff --git a/ext/waylandwrl/gstwaylandwrlsink.c b/ext/waylandwrl/gstwaylandwrlsink.c
+index be0cfdc..8c2e24b 100644
+--- a/ext/waylandwrl/gstwaylandwrlsink.c
++++ b/ext/waylandwrl/gstwaylandwrlsink.c
+@@ -63,10 +63,20 @@ enum
+ GST_DEBUG_CATEGORY (gstwayland_debug);
+ #define GST_CAT_DEFAULT gstwayland_debug
+ 
++#if G_BYTE_ORDER == G_BIG_ENDIAN
++#define CAPS "{xRGB, ARGB}"
++#else
++#define CAPS "{BGRx, BGRA}"
++#endif
++
+ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
+     GST_PAD_SINK,
+     GST_PAD_ALWAYS,
++#ifdef HAVE_WAYLAND_KMS
+     GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE (GST_VIDEO_FORMATS_ALL))
++#else
++    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE (CAPS))
++#endif
+     );
+ 
+ /*Fixme: Add more interfaces */
+@@ -272,7 +282,9 @@ gst_wayland_sink_init (GstWaylandwrlSink * sink)
+   if (!sink->display)
+     GST_ELEMENT_ERROR (sink, RESOURCE, NO_SPACE_LEFT,
+         ("Could not allocate display"), ("Could not allocate display"));
++#ifdef HAVE_WAYLAND_KMS
+   sink->display->drm_fd = -1;
++#endif
+ 
+   sink->window = NULL;
+   sink->shm_pool = NULL;
+@@ -371,11 +383,10 @@ destroy_display (struct display *display, gboolean ext_display)
+     if (!ext_display)
+       wl_display_disconnect (display->display);
+   }
+-
++#ifdef HAVE_WAYLAND_KMS
+   if (display->drm_fd >= 0)
+     close (display->drm_fd);
+-
+-  g_free (display);
++#endif
+ }
+ 
+ static void
+@@ -405,10 +416,8 @@ gst_wayland_sink_finalize (GObject * object)
+ 
+   GST_DEBUG_OBJECT (sink, "Finalizing the sink..");
+ 
+-  if (sink->window)
+-    destroy_window (sink->window);
+-  if (sink->display)
+-    destroy_display (sink->display, sink->ext_display);
++  g_free (sink->display);
++
+   if (sink->shm_pool)
+     shm_pool_destroy (sink->shm_pool);
+ 
+@@ -783,8 +792,10 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
+   }
+ 
+   structure = gst_buffer_pool_get_config (newpool);
++#ifdef HAVE_WAYLAND_KMS
+   gst_structure_set (structure, "videosink_buffer_creation_request_supported",
+       G_TYPE_BOOLEAN, TRUE, NULL);
++#endif
+   gst_buffer_pool_config_set_params (structure, caps, size,
+       GST_WAYLAND_BUFFER_POOL_NUM, GST_WAYLAND_BUFFER_POOL_NUM);
+   gst_buffer_pool_config_set_allocator (structure, NULL, &params);
+@@ -890,8 +901,16 @@ gst_wayland_sink_stop (GstBaseSink * bsink)
+     sink->pool = NULL;
+   }
+ 
++  if (sink->window)
++    destroy_window (sink->window);
++  if (sink->display)
++    destroy_display (display, sink->ext_display);
++
++#ifdef HAVE_WAYLAND_KMS
+   g_list_free_full (display->support_fmt_list,
+       (GDestroyNotify) kms_color_fmt_free);
++  display->support_fmt_list = NULL;
++#endif
+ 
+   return TRUE;
+ }
+@@ -907,8 +926,8 @@ gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
+   gboolean need_pool;
+ #ifdef HAVE_WAYLAND_KMS
+   GstAllocator *allocator;
+-  GstAllocationParams params;
+ #endif
++  GstAllocationParams params;
+ 
+ #ifdef HAVE_WAYLAND_KMS
+   gst_allocation_params_init (&params);
+@@ -1164,7 +1183,9 @@ activate_failed:
+ static gboolean
+ gst_wayland_sink_query (GstBaseSink * bsink, GstQuery * query)
+ {
++#ifdef HAVE_WAYLAND_KMS
+   GstWaylandwrlSink *sink = GST_WAYLAND_SINK (bsink);
++#endif
+   gboolean ret = FALSE;
+ 
+   switch (GST_QUERY_TYPE (query)) {
+diff --git a/ext/waylandwrl/waylandpool.c b/ext/waylandwrl/waylandpool.c
+index 4047bc9..e4141d7 100644
+--- a/ext/waylandwrl/waylandpool.c
++++ b/ext/waylandwrl/waylandpool.c
+@@ -147,6 +147,7 @@ gst_wayland_buffer_pool_create_buffer_from_dmabuf (GstWaylandBufferPool * wpool,
+   }
+ 
+   wmeta->data = NULL;
++  wmeta->kms_bo = NULL;
+ 
+   gst_buffer_add_video_meta_full (buffer, GST_VIDEO_FRAME_FLAG_NONE, format,
+       width, height, n_planes, offset, stride);
+@@ -175,9 +176,11 @@ wayland_buffer_pool_set_config (GstBufferPool * pool, GstStructure * config)
+   GstVideoInfo info;
+   GstCaps *caps;
+ 
++#ifdef HAVE_WAYLAND_KMS
+   if (wpool->allocator)
+     gst_object_unref (wpool->allocator);
+   wpool->allocator = NULL;
++#endif
+ 
+   if (!gst_buffer_pool_config_get_params (config, &caps, NULL, NULL, NULL))
+     goto wrong_config;
+@@ -209,11 +212,13 @@ wayland_buffer_pool_set_config (GstBufferPool * pool, GstStructure * config)
+ 
+   return GST_BUFFER_POOL_CLASS (parent_class)->set_config (pool, config);
+   /* ERRORS */
++#ifdef HAVE_WAYLAND_KMS
+ wrong_allocator:
+   {
+     GST_WARNING_OBJECT (pool, "no allocator");
+     return FALSE;
+   }
++#endif
+ wrong_config:
+   {
+     GST_WARNING_OBJECT (pool, "invalid config");
+@@ -500,7 +505,9 @@ gst_wayland_buffer_pool_class_init (GstWaylandBufferPoolClass * klass)
+ static void
+ gst_wayland_buffer_pool_init (GstWaylandBufferPool * pool)
+ {
++#ifdef HAVE_WAYLAND_KMS
+   pool->kms = NULL;
++#endif
+ }
+ 
+ static void
+-- 
+1.9.1
+

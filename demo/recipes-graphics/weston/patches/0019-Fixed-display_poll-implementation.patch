@@ -1,0 +1,82 @@
+From 04efa74dab1c47f19d2f0ec4d951e2ebfc92b265 Mon Sep 17 00:00:00 2001
+From: Andrey Vostrikov <andrey.vostrikov@cogentembedded.com>
+Date: Wed, 30 Sep 2015 15:50:27 +0300
+Subject: [PATCH] Fixed display_poll implementation, NEVER call standard
+ dispatch function even via callbacks, it blocks on indefinite poll
+
+---
+ clients/window.c | 57 ++++++++++++++++++++++++++++++++++----------------------
+ 1 file changed, 35 insertions(+), 22 deletions(-)
+
+diff --git a/clients/window.c b/clients/window.c
+index f63fce3..7e63681 100644
+--- a/clients/window.c
++++ b/clients/window.c
+@@ -5585,29 +5585,42 @@ display_poll(struct display *display, int timeout)
+ 		task->run(task, 0);
+ 	}
+ 
+-	wl_display_dispatch_pending(display->display);
++    /* ...prepare for a reading */
++    while (wl_display_prepare_read(display->display) != 0)
++    {
++        /* ...dispatch all pending events and repeat attempt */
++        wl_display_dispatch_pending(display->display);
++    }
++
++    /* ...flush all outstanding commands to a display */
++    if (wl_display_flush(display->display) < 0) {
++        return -1;
++    }
++
++    if (!display->running)
++	    return -1;
++
++    count = epoll_wait(display->epoll_fd, ep, ARRAY_LENGTH(ep), timeout);
++    if (!count) {
++        wl_display_cancel_read(display->display);
++        return 0;
++    }
++
++    if (count > 0) {
++        /* ...read display events (if any) before we do any drawing */
++        if (wl_display_read_events(display->display) < 0) {
++            return -1;
++        }
++
++        /* ...process pending display events (if any) */
++        if (wl_display_dispatch_pending(display->display) < 0) {
++            return -1;
++        }
++    } else if (count < 0) {
++        wl_display_cancel_read(display->display);
++        return count;
++    }
+ 
+-	if (!display->running)
+-		return -1;
+-
+-	ret = wl_display_flush(display->display);
+-	if (ret < 0 && errno == EAGAIN) {
+-		ep[0].events =
+-			EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLHUP;
+-		ep[0].data.ptr = &display->display_task;
+-
+-		epoll_ctl(display->epoll_fd, EPOLL_CTL_MOD,
+-			  display->display_fd, &ep[0]);
+-	} else if (ret < 0) {
+-		return -1;
+-	}
+-
+-	count = epoll_wait(display->epoll_fd,
+-			   ep, ARRAY_LENGTH(ep), timeout);
+-	for (i = 0; i < count; i++) {
+-		task = ep[i].data.ptr;
+-		task->run(task, ep[i].events);
+-	}
+ 	return 0;
+ }
+ 
+-- 
+2.1.4
+

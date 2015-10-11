@@ -1,0 +1,223 @@
+From 8458e06b25c07ebc8cf6b210fc1ea4cc9aeb42eb Mon Sep 17 00:00:00 2001
+From: Laszlo Agocs <laszlo.agocs@digia.com>
+Date: Sat, 6 Sep 2014 22:55:07 +0200
+Subject: [PATCH] Sanitize popup behavior.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Popups are pretty important for widget apps. Menus, combobox dropdows
+and such are all popups. Currently they are completely borked when
+activated via keyboard or touch. This is because of the bizarre set_popup
+request in the protocol, and Weston's current implementation, that ignore
+the fact that a popup can be opened as a result of a keyboard event too
+or may not originate from an input event at all.
+
+Pass the last input device and serial we have seen, regardless of the type,
+by tracking it globally in the QWaylandDisplay.
+
+With this patch menus and such will not freeze the application anymore
+when activated with keyboard or touch without sending a mouse event
+to the window first. The behavior is still broken in some ways, especially
+with keyboard due to immediately getting a popup_done, but at least
+applications remain usable.
+
+Task-number: QTBUG-41142
+Task-number: QTBUG-41147
+Change-Id: I18de501004ae8a62ff8667e72225d08c2d3ba491
+Reviewed-by: Laszlo Agocs <laszlo.agocs@theqtcompany.com>
+Reviewed-by: Jørgen Lind <jorgen.lind@theqtcompany.com>
+
+---
+ src/client/qwaylanddisplay.cpp        | 10 ++++++++++
+ src/client/qwaylanddisplay_p.h        |  8 ++++++++
+ src/client/qwaylandinputdevice.cpp    |  8 ++++++--
+ src/client/qwaylandwindow.cpp         | 15 +++------------
+ src/client/qwaylandwindow_p.h         |  2 --
+ src/client/qwaylandwlshellsurface.cpp |  8 +++++++-
+ 6 files changed, 34 insertions(+), 17 deletions(-)
+
+diff --git a/src/client/qwaylanddisplay.cpp b/src/client/qwaylanddisplay.cpp
+index fda2c20..9dedabd 100644
+--- a/src/client/qwaylanddisplay.cpp
++++ b/src/client/qwaylanddisplay.cpp
+@@ -128,6 +128,9 @@ QWaylandDisplay::QWaylandDisplay(QWaylandIntegration *waylandIntegration)
+     , mQtKeyExtension(0)
+     , mTextInputManager(0)
+     , mHardwareIntegration(0)
++    , mLastInputSerial(0)
++    , mLastInputDevice(0)
++    , mLastInputWindow(0)
+ {
+     qRegisterMetaType<uint32_t>("uint32_t");
+ 
+@@ -359,4 +362,11 @@ bool QWaylandDisplay::supportsWindowDecoration() const
+     return integrationSupport;
+ }
+ 
++void QWaylandDisplay::setLastInputDevice(QWaylandInputDevice *device, uint32_t serial, QWaylandWindow *win)
++{
++    mLastInputDevice = device;
++    mLastInputSerial = serial;
++    mLastInputWindow = win;
++}
++
+ QT_END_NAMESPACE
+diff --git a/src/client/qwaylanddisplay_p.h b/src/client/qwaylanddisplay_p.h
+index 8d1d26b..d9619e6 100644
+--- a/src/client/qwaylanddisplay_p.h
++++ b/src/client/qwaylanddisplay_p.h
+@@ -159,6 +159,11 @@ public:
+ 
+     bool supportsWindowDecoration() const;
+ 
++    uint32_t lastInputSerial() const { return mLastInputSerial; }
++    QWaylandInputDevice *lastInputDevice() const { return mLastInputDevice; }
++    QWaylandWindow *lastInputWindow() const { return mLastInputWindow; }
++    void setLastInputDevice(QWaylandInputDevice *device, uint32_t serial, QWaylandWindow *window);
++
+ public slots:
+     void blockingReadEvents();
+     void flushRequests();
+@@ -200,6 +205,9 @@ private:
+     bool mScreensInitialized;
+     QList<RegistryGlobal> mGlobals;
+     int mCompositorVersion;
++    uint32_t mLastInputSerial;
++    QWaylandInputDevice *mLastInputDevice;
++    QWaylandWindow *mLastInputWindow;
+ 
+     void registry_global(uint32_t id, const QString &interface, uint32_t version) Q_DECL_OVERRIDE;
+     void registry_global_remove(uint32_t id) Q_DECL_OVERRIDE;
+diff --git a/src/client/qwaylandinputdevice.cpp b/src/client/qwaylandinputdevice.cpp
+index 39d1705..80c34a9 100644
+--- a/src/client/qwaylandinputdevice.cpp
++++ b/src/client/qwaylandinputdevice.cpp
+@@ -476,7 +476,6 @@ void QWaylandInputDevice::Pointer::pointer_motion(uint32_t time, wl_fixed_t surf
+ void QWaylandInputDevice::Pointer::pointer_button(uint32_t serial, uint32_t time,
+                                                   uint32_t button, uint32_t state)
+ {
+-    Q_UNUSED(serial);
+     QWaylandWindow *window = mFocus;
+     Qt::MouseButton qt_button;
+ 
+@@ -509,6 +508,8 @@ void QWaylandInputDevice::Pointer::pointer_button(uint32_t serial, uint32_t time
+ 
+     mParent->mTime = time;
+     mParent->mSerial = serial;
++    if (state)
++        mParent->mQDisplay->setLastInputDevice(mParent, serial, window);
+ 
+     QWaylandWindow *grab = QWaylandWindow::mouseGrab();
+     if (grab && grab != mFocus) {
+@@ -754,7 +755,6 @@ void QWaylandInputDevice::Keyboard::focusCallback(void *data, struct wl_callback
+ 
+ void QWaylandInputDevice::Keyboard::keyboard_key(uint32_t serial, uint32_t time, uint32_t key, uint32_t state)
+ {
+-    Q_UNUSED(serial);
+     QWaylandWindow *window = mFocus;
+     uint32_t code = key + 8;
+     bool isDown = state != 0;
+@@ -768,6 +768,9 @@ void QWaylandInputDevice::Keyboard::keyboard_key(uint32_t serial, uint32_t time,
+         return;
+     }
+ 
++    if (isDown)
++        mParent->mQDisplay->setLastInputDevice(mParent, serial, window);
++
+ #ifndef QT_NO_WAYLAND_XKB
+     if (!mXkbMap)
+         return;
+@@ -873,6 +876,7 @@ void QWaylandInputDevice::Touch::touch_down(uint32_t serial,
+     mParent->mTime = time;
+     mParent->mSerial = serial;
+     mFocus = QWaylandWindow::fromWlSurface(surface);
++    mParent->mQDisplay->setLastInputDevice(mParent, serial, mFocus);
+     mParent->handleTouchPoint(id, wl_fixed_to_double(x), wl_fixed_to_double(y), Qt::TouchPointPressed);
+ }
+ 
+diff --git a/src/client/qwaylandwindow.cpp b/src/client/qwaylandwindow.cpp
+index 6c4a339..474e041 100644
+--- a/src/client/qwaylandwindow.cpp
++++ b/src/client/qwaylandwindow.cpp
+@@ -88,8 +88,6 @@ QWaylandWindow::QWaylandWindow(QWindow *window)
+     , mResizeDirty(false)
+     , mResizeAfterSwap(qEnvironmentVariableIsSet("QT_WAYLAND_RESIZE_AFTER_SWAP"))
+     , mSentInitialResize(false)
+-    , mMouseDevice(0)
+-    , mMouseSerial(0)
+     , mState(Qt::WindowNoState)
+     , mBackingStore(Q_NULLPTR)
+ {
+@@ -228,13 +226,10 @@ void QWaylandWindow::setVisible(bool visible)
+     if (visible) {
+         if (window()->type() == Qt::Popup && transientParent()) {
+             QWaylandWindow *parent = transientParent();
+-            mMouseDevice = parent->mMouseDevice;
+-            mMouseSerial = parent->mMouseSerial;
+ 
+             QWaylandWlShellSurface *wlshellSurface = dynamic_cast<QWaylandWlShellSurface*>(mShellSurface);
+-            if (mMouseDevice && wlshellSurface) {
+-                wlshellSurface->setPopup(transientParent(), mMouseDevice, mMouseSerial);
+-            }
++	    if (wlshellSurface)
++                wlshellSurface->setPopup(parent, mDisplay->lastInputDevice(), mDisplay->lastInputSerial());
+         }
+ 
+         setGeometry(window()->geometry());
+@@ -572,7 +567,7 @@ QWaylandWindow *QWaylandWindow::transientParent() const
+     if (window()->transientParent()) {
+         // Take the top level window here, since the transient parent may be a QWidgetWindow
+         // or some other window without a shell surface, which is then not able to get mouse
+-        // events, nor set mMouseSerial and mMouseDevice.
++        // events.
+         return static_cast<QWaylandWindow *>(topLevelWindow(window()->transientParent())->handle());
+     }
+     return 0;
+@@ -580,10 +575,6 @@ QWaylandWindow *QWaylandWindow::transientParent() const
+ 
+ void QWaylandWindow::handleMouse(QWaylandInputDevice *inputDevice, ulong timestamp, const QPointF &local, const QPointF &global, Qt::MouseButtons b, Qt::KeyboardModifiers mods)
+ {
+-    if (b != Qt::NoButton) {
+-        mMouseSerial = inputDevice->serial();
+-        mMouseDevice = inputDevice;
+-    }
+ 
+     if (mWindowDecoration) {
+         handleMouseEventWithDecoration(inputDevice, timestamp,local,global,b,mods);
+diff --git a/src/client/qwaylandwindow_p.h b/src/client/qwaylandwindow_p.h
+index 6c32bc3..9ad6fe2 100644
+--- a/src/client/qwaylandwindow_p.h
++++ b/src/client/qwaylandwindow_p.h
+@@ -220,8 +220,6 @@ protected:
+     QPoint mOffset;
+ 
+     QIcon mWindowIcon;
+-    QWaylandInputDevice *mMouseDevice;
+-    int mMouseSerial;
+ 
+     Qt::WindowState mState;
+ 
+diff --git a/src/client/qwaylandwlshellsurface.cpp b/src/client/qwaylandwlshellsurface.cpp
+index 86115fa..39505e1 100644
+--- a/src/client/qwaylandwlshellsurface.cpp
++++ b/src/client/qwaylandwlshellsurface.cpp
+@@ -187,8 +187,14 @@ void QWaylandWlShellSurface::updateTransientParent(QWindow *parent)
+ void QWaylandWlShellSurface::setPopup(QWaylandWindow *parent, QWaylandInputDevice *device, int serial)
+ {
+     QWaylandWindow *parent_wayland_window = parent;
+-    if (!parent_wayland_window)
++    if (!parent_wayland_window) {
++        qWarning("setPopup called without parent window");
++        return;
++    }
++    if (!device) {
++        qWarning("setPopup called without input device");
+         return;
++    }
+ 
+     // set_popup expects a position relative to the parent
+     QPoint transientPos = m_window->geometry().topLeft(); // this is absolute
+-- 
+1.9.1
+

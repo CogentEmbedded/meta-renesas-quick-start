@@ -1,0 +1,36 @@
+diff -pruN spacenavd-0.6.orig/Makefile.in spacenavd-0.6/Makefile.in
+--- spacenavd-0.6.orig/Makefile.in	2015-06-30 06:13:26.694624476 -0700
++++ spacenavd-0.6/Makefile.in	2015-06-30 06:13:48.422625248 -0700
+@@ -3,12 +3,12 @@ hdr = $(wildcard src/*.h) $(wildcard src
+ obj = $(src:.c=.o)
+ dep = $(obj:.o=.d)
+ bin = spacenavd
+-ctl = spnavd_ctl
+ 
+-CC = gcc
++CC ?= gcc
+ INSTALL = install
+-CFLAGS = -pedantic -Wall $(dbg) $(opt) -fno-strict-aliasing -I$(srcdir)/src -I/usr/local/include $(add_cflags)
+-LDFLAGS = -L/usr/local/lib $(xlib) $(add_ldflags)
++CFLAGS ?= -pedantic -Wall -fno-strict-aliasing  -I/usr/local/include $(add_cflags)
++CFLAGS += $(dbg) $(opt) -I$(srcdir)/src
++LDFLAGS ?= -L/usr/local/lib $(xlib) $(add_ldflags)
+ 
+ $(bin): $(obj)
+ 	$(CC) -o $@ $(obj) $(LDFLAGS)
+@@ -36,7 +36,6 @@ cleandep:
+ install: $(bin)
+ 	$(INSTALL) -d $(DESTDIR)$(PREFIX)/bin
+ 	$(INSTALL) -m 755 $(bin) $(DESTDIR)$(PREFIX)/bin/$(bin)
+-	$(INSTALL) -m 755 $(srcdir)/$(ctl) $(DESTDIR)$(PREFIX)/bin/$(ctl)
+ 	cd $(srcdir) && ./setup_init --no-install
+ 
+ #	[ -d /etc/hal/fdi/policy ] && \
+@@ -45,7 +44,5 @@ install: $(bin)
+ .PHONY: uninstall
+ uninstall:
+ 	rm -f $(DESTDIR)$(PREFIX)/bin/$(bin)
+-	rm -f $(DESTDIR)$(PREFIX)/bin/$(ctl)
+-	rm -f $(DESTDIR)/etc/hal/fdi/policy/spacenav.fdi
+ 
+ #	cd $(srcdir) && ./setup_init remove

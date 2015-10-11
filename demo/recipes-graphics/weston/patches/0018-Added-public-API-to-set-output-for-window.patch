@@ -1,0 +1,90 @@
+From ff42291dee552619c9379713dfe88b445a7f4af9 Mon Sep 17 00:00:00 2001
+From: Andrey Vostrikov <andrey.vostrikov@cogentembedded.com>
+Date: Fri, 7 Aug 2015 18:09:41 +0300
+Subject: [PATCH] Added public API to set output for window
+
+---
+ clients/toytoolkit.h |  9 +++++++++
+ clients/window.c     | 32 ++++++++++++++++++++++++++++++++
+ 2 files changed, 41 insertions(+)
+
+diff --git a/clients/toytoolkit.h b/clients/toytoolkit.h
+index d701d22..62e475c 100644
+--- a/clients/toytoolkit.h
++++ b/clients/toytoolkit.h
+@@ -89,6 +89,12 @@ display_get_compositor(struct display *display);
+ struct output *
+ display_get_output(struct display *display);
+ 
++unsigned int
++display_get_outputs_number(struct display *display);
++
++struct output *
++display_get_output_by_index(struct display *display, unsigned int index);
++
+ uint32_t
+ display_get_serial(struct display *display);
+ 
+@@ -374,6 +380,9 @@ window_is_fullscreen(struct window *window);
+ void
+ window_set_fullscreen(struct window *window, int fullscreen);
+ 
++void
++window_set_output(struct window *window, struct output *output);
++
+ int
+ window_is_maximized(struct window *window);
+ 
+diff --git a/clients/window.c b/clients/window.c
+index 5ee78f0..f63fce3 100644
+--- a/clients/window.c
++++ b/clients/window.c
+@@ -4158,6 +4158,15 @@ window_set_fullscreen(struct window *window, int fullscreen)
+ 					 0);
+ }
+ 
++void
++window_set_output(struct window *window, struct output *output)
++{
++	if (!window->xdg_surface)
++		return;
++
++	xdg_surface_set_output(window->xdg_surface, output_get_wl_output(output));
++}
++
+ int
+ window_is_maximized(struct window *window)
+ {
+@@ -5456,6 +5465,29 @@ display_get_output(struct display *display)
+ 	return container_of(display->output_list.next, struct output, link);
+ }
+ 
++unsigned int
++display_get_outputs_number(struct display *display)
++{
++    return wl_list_length(&display->output_list);
++}
++
++struct output *
++display_get_output_by_index(struct display *display, unsigned int index)
++{
++    int i;
++    int n = wl_list_length(&display->output_list);
++    struct wl_list *item;
++
++    if (index >= n)
++        return NULL;
++
++    item = display->output_list.next;
++    for (i = 0; i < index; i++)
++        item = item->next;
++
++	return container_of(item, struct output, link);
++}
++
+ struct wl_compositor *
+ display_get_compositor(struct display *display)
+ {
+-- 
+2.1.4
+

@@ -1,0 +1,21 @@
+diff --git a/ext/waylandwrl/gstwaylandwrlsink.c b/ext/waylandwrl/gstwaylandwrlsink.c
+index ded0b66..5777fdb 100644
+--- a/ext/waylandwrl/gstwaylandwrlsink.c
++++ b/ext/waylandwrl/gstwaylandwrlsink.c
+@@ -577,8 +577,14 @@ create_display (GstWaylandSink * sink)
+         &shell_surface_listener, window);
+ 
+     if (fullscreen) {
+-      wl_shell_surface_set_fullscreen (window->shell_surface,
+-          WL_SHELL_SURFACE_FULLSCREEN_METHOD_DEFAULT, 0, display->output);
++      /* set window position */
++      if ( sink->position_x < 1920 ) {
++        wl_shell_surface_set_fullscreen (window->shell_surface,
++            WL_SHELL_SURFACE_FULLSCREEN_METHOD_DEFAULT, 0, /*display->output*/NULL);
++      } else {
++        wl_shell_surface_set_fullscreen (window->shell_surface,
++            WL_SHELL_SURFACE_FULLSCREEN_METHOD_DEFAULT, 0, display->output);
++      }
+     } else {
+       if ( (sink->position_x == -1) || (sink->position_y == -1) ) {
+         wl_shell_surface_set_toplevel (window->shell_surface);

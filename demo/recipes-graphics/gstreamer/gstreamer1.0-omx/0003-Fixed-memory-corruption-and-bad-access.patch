@@ -1,0 +1,65 @@
+From 3e528cda6fb9d0da2be52e18a305096cf6e37528 Mon Sep 17 00:00:00 2001
+From: Andrey Vostrikov <andrey.vostrikov@cogentembedded.com>
+Date: Sat, 18 Jul 2015 15:52:59 +0300
+Subject: [PATCH] Fixed memory corruption and bad access
+
+---
+ omx/gstomxh264dec.c  |  4 ++--
+ omx/gstomxvideodec.c | 12 ++++++------
+ 2 files changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/omx/gstomxh264dec.c b/omx/gstomxh264dec.c
+index 7799e69..5509cc0 100644
+--- a/omx/gstomxh264dec.c
++++ b/omx/gstomxh264dec.c
+@@ -104,7 +104,7 @@ gst_omx_h264_dec_retrieve_sps_pps (GstOMXH264Dec * self, guint8 * data)
+ 
+   sps_num = ptr[5] & 0x1f;      /* reserved(3bit) + numOfSequenceParameterSets(uint 5bit) */
+ 
+-  sps_size_list = g_malloc (sps_num);
++  sps_size_list = g_malloc (sps_num * sizeof (guint));
+   if (!sps_size_list) {
+     GST_ERROR_OBJECT (self, "failed g_malloc");
+     return NULL;
+@@ -119,7 +119,7 @@ gst_omx_h264_dec_retrieve_sps_pps (GstOMXH264Dec * self, guint8 * data)
+   }
+ 
+   pps_num = *ptr++;             /* numOfPictureParameterSets (unint 8bit) */
+-  pps_size_list = g_malloc (pps_num);
++  pps_size_list = g_malloc (pps_num * sizeof (guint));
+   if (!pps_size_list) {
+     GST_ERROR_OBJECT (self, "failed g_malloc");
+     g_free (sps_size_list);
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index c5b69ab..4a9706f 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -563,10 +563,12 @@ gst_omx_buffer_pool_free_buffer (GstBufferPool * bpool, GstBuffer * buffer)
+       gst_omx_buffer_data_quark);
+ #ifdef HAVE_MMNGRBUF
+   if (self->use_dmabuf) {
+-    vdbuf_data = (GstOMXVideoDecBufferData *) omx_buf->private_data;
+-    for (i = 0; i < GST_VIDEO_MAX_PLANES; i++)
+-      if (vdbuf_data->id_export[i] >= 0)
+-        mmngr_export_end_in_user (vdbuf_data->id_export[i]);
++      vdbuf_data = (GstOMXVideoDecBufferData *) omx_buf->private_data;
++      if (vdbuf_data) {
++          for (i = 0; i < GST_VIDEO_MAX_PLANES; i++)
++              if (vdbuf_data->id_export[i] >= 0)
++                  mmngr_export_end_in_user (vdbuf_data->id_export[i]);
++      }
+   }
+ #endif
+   g_slice_free (GstOMXVideoDecBufferData, omx_buf->private_data);
+@@ -1684,8 +1686,6 @@ gst_omx_video_dec_deallocate_output_buffers (GstOMXVideoDec * self)
+ 
+ static void GstOMXBufCallbackfunc (struct GstOMXBufferCallback *release)
+ {
+-  gint i;
+-
+   if (!release)
+     return;
+ 
+-- 
+2.1.4
+

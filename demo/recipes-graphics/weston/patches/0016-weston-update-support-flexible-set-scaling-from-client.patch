@@ -1,0 +1,48 @@
+diff --git a/desktop-shell/shell.c b/desktop-shell/shell.c
+index 314a180..f052948 100644
+--- a/desktop-shell/shell.c
++++ b/desktop-shell/shell.c
+@@ -2593,13 +2593,18 @@ set_surface_type(struct shell_surface *shsurf)
+ 	struct weston_view *pev = get_default_view(pes);
+ 
+ 	struct weston_matrix *matrix;
+-	float scale;
++	float scale_w, scale_h;
++	int width, height, tmp;
++	struct weston_surface *surface = shsurf->surface;
++	int32_t surf_x, surf_y, surf_width, surf_height;
+ 
+ 	reset_surface_type(shsurf);
+ 
+ 	shsurf->state = shsurf->next_state;
+ 	shsurf->state_changed = false;
+ 
++	surface_subsurfaces_boundingbox(shsurf->surface, &surf_x, &surf_y,
++	                                &surf_width, &surf_height);
+ 	switch (shsurf->type) {
+ 	case SHELL_SURFACE_TOPLEVEL:
+ 		if (shsurf->state.maximized || shsurf->state.fullscreen) {
+@@ -2612,12 +2617,18 @@ set_surface_type(struct shell_surface *shsurf)
+ 		/*call scale function*/
+ 		matrix = &shsurf->fullscreen.transform.matrix;
+ 		weston_matrix_init(matrix);
+-		scale = (float)((shsurf->transient.flags)* 0.5);
+-		weston_matrix_scale(matrix, scale, scale, 1);
+-		wl_list_remove(&shsurf->fullscreen.transform.link);
+-		wl_list_insert(&shsurf->view->geometry.transformation_list,
++        /*calculate scaling ratio*/
++		if ((shsurf->transient.flags) != 0){
++			tmp = shsurf->transient.flags;
++			width = (shsurf->transient.flags) >> 16;
++			height = tmp & 0xffff;
++			scale_w = (float) width / (float) surf_width;
++			scale_h = (float) height / (float) surf_height;
++			weston_matrix_scale(matrix, scale_w, scale_h, 1);
++			wl_list_remove(&shsurf->fullscreen.transform.link);
++			wl_list_insert(&shsurf->view->geometry.transformation_list,
+ 			       &shsurf->fullscreen.transform.link);
+-
++		}
+ 		weston_view_set_position(shsurf->view,
+ 					 shsurf->transient.x,
+ 					 shsurf->transient.y);

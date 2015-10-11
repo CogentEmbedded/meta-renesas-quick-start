@@ -1,0 +1,120 @@
+From cda32f876793d44a5e05755685cc5b2c2316f5dd Mon Sep 17 00:00:00 2001
+From: Andrey Vostrikov <andrey.vostrikov@cogentembedded.com>
+Date: Fri, 30 Jan 2015 17:53:34 +0300
+Subject: [PATCH] Fixed memory leaks found by Valgrind
+
+---
+ ext/waylandfs/gstwaylandfssink.c | 48 ++++++++++++++++++++--------------------
+ 1 file changed, 24 insertions(+), 24 deletions(-)
+
+diff --git a/ext/waylandfs/gstwaylandfssink.c b/ext/waylandfs/gstwaylandfssink.c
+index 88b175f..fcc5d14 100644
+--- a/ext/waylandfs/gstwaylandfssink.c
++++ b/ext/waylandfs/gstwaylandfssink.c
+@@ -310,6 +310,8 @@ gst_wayland_sink_set_property (GObject * object,
+ static void
+ destroy_display (struct display *display, gboolean ext_display)
+ {
++  int i;
++
+   if (display->shm)
+     wl_shm_destroy (display->shm);
+ 
+@@ -319,6 +321,21 @@ destroy_display (struct display *display, gboolean ext_display)
+   if (display->compositor)
+     wl_compositor_destroy (display->compositor);
+ 
++  if (display->wl_queue)
++      wl_event_queue_destroy(display->wl_queue);
++
++  for (i = 0; i < display->output_count; i++) {
++      wl_output_destroy(display->outputs[i]);
++  }
++
++#ifdef HAVE_WAYLAND_KMS
++  if (display->wl_kms)
++      wl_kms_destroy(display->wl_kms);
++#endif
++
++  if (display->registry)
++      wl_registry_destroy(display->registry);
++
+   if (display->display) {
+     wl_display_flush (display->display);
+     if (!ext_display)
+@@ -339,7 +356,7 @@ destroy_window (struct window *window)
+   if (window->surface)
+     wl_surface_destroy (window->surface);
+ 
+-  free (window);
++  g_free (window);
+ }
+ 
+ static void
+@@ -561,6 +578,7 @@ create_display (GstWaylandfsSink * sink)
+ 
+     if (!window->shell_surface) {
+       GST_ERROR_OBJECT (sink, "Failed to create shell surface");
++      destroy_window(window);
+       return FALSE;
+     }
+ 
+@@ -569,6 +587,7 @@ create_display (GstWaylandfsSink * sink)
+ 
+     if (output_number < 0 || output_number >= display->output_count) {
+       printf ("wayland-fullscreen-sink: bad output number: %d\n", output_number);
++      destroy_window(window);
+       return FALSE;
+     }
+ 
+@@ -763,9 +782,6 @@ create_window (GstWaylandfsSink * sink, struct display *display, int width,
+ {
+   struct window *window;
+ 
+-/*  if (sink->window)
+-    return; */
+-
+   g_mutex_lock (&sink->wayland_lock);
+ 
+   window = sink->window;
+@@ -773,26 +789,6 @@ create_window (GstWaylandfsSink * sink, struct display *display, int width,
+   window->width = width;
+   window->height = height;
+ 
+-/*
+-  window = malloc (sizeof *window);
+-  window->display = display;
+-  window->redraw_pending = FALSE;
+-  window->surface = wl_compositor_create_surface (display->compositor);
+-
+-  if (display->shell) {
+-    window->shell_surface = wl_shell_get_shell_surface (display->shell,
+-        window->surface);
+-
+-    g_return_if_fail (window->shell_surface);
+-
+-    wl_shell_surface_add_listener (window->shell_surface,
+-        &shell_surface_listener, window);
+-
+-    wl_shell_surface_set_toplevel (window->shell_surface);
+-  }
+-
+-  sink->window = window;
+-*/
+   window->init_complete = TRUE;
+   g_mutex_unlock (&sink->wayland_lock);
+ }
+@@ -812,6 +808,10 @@ gst_wayland_sink_start (GstBaseSink * bsink)
+     GST_ELEMENT_ERROR (bsink, RESOURCE, OPEN_READ_WRITE,
+         ("Could not initialise Wayland output"),
+         ("Could not create Wayland display"));
++    if (sink->window)
++        destroy_window(sink->window);
++    if (sink->display)
++        destroy_display(sink->display, sink->ext_display);
+     return FALSE;
+   }
+ 
+-- 
+2.1.2
+

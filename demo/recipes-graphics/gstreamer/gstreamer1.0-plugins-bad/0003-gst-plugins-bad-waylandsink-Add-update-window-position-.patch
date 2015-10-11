@@ -1,0 +1,12 @@
+diff --git a/ext/waylandwrl/gstwaylandwrlsink.c b/ext/waylandwrl/gstwaylandwrlsink.c
+index 5777fdb..8eda43a 100644
+--- a/ext/waylandwrl/gstwaylandwrlsink.c
++++ b/ext/waylandwrl/gstwaylandwrlsink.c
+@@ -591,6 +591,7 @@ create_display (GstWaylandSink * sink)
+       } else {
+         /* set window position */
+         wl_shell_surface_set_transient (window->shell_surface, window->surface, sink->position_x, sink->position_y, 0);
++	    wl_shell_surface_set_toplevel (window->shell_surface);
+       }
+     }
+   }
