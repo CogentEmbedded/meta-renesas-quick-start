@@ -1,23 +1,22 @@
 FILESEXTRAPATHS_prepend := "${THISDIR}/${PN}:"
 
-SRC_URI_append_r8a7790 = "file://libpvrWAYLAND_WSEGL.so file://libGLESv2.so"
-SRC_URI_append_r8a7794 = "file://libpvrPVR2D_WAYLANDWSEGL.so"
-SRC_URI_append_r8a7791 = "file://libpvrPVR2D_WAYLANDWSEGL.so"
+SRC_URI_append = " file://updated-drivers.tar.bz2;name=update"
 
 do_install_append() {
     ln -s libGLESv2.so ${D}/usr/lib/libGLESv2.so.2 
+
+    # Install updated drivers when they are provided
+    if [ "${GLES}" = "rgx" ]; then
+	if [ -f "${WORKDIR}/updated-drivers/libGLESv2.so" ]; then
+	    install -m 644 "${WORKDIR}/updated-drivers/libGLESv2.so" "${D}/usr/lib/"
+	fi
+	if [ -f "${WORKDIR}/updated-drivers/libpvrWAYLAND_WSEGL.so" ]; then
+	    install -m 644 "${WORKDIR}/updated-drivers/libpvrWAYLAND_WSEGL.so" "${D}/usr/lib/"
+	fi
+    elif [ "${GLES}" = "sgx" ]; then
+	if [ -f "${WORKDIR}/updated-drivers/libpvrPVR2D_WAYLANDWSEGL.so" ]; then
+	    install -m 644 "${WORKDIR}/updated-drivers/libpvrPVR2D_WAYLANDWSEGL.so" "${D}/usr/lib/"
+	fi
+    fi
 }
 
-do_install_append_r8a7790() {
-    install -m 644 ${WORKDIR}/libGLESv2.so ${D}/usr/lib/
-    install -m 644 ${WORKDIR}/libpvrWAYLAND_WSEGL.so ${D}/usr/lib/
-} 
-
-do_install_append_r8a7794() {
-    install -m 644 ${WORKDIR}/libpvrPVR2D_WAYLANDWSEGL.so ${D}/usr/lib/
-} 
-
-do_install_append_r8a7791() {
-    install -m 644 ${WORKDIR}/libpvrPVR2D_WAYLANDWSEGL.so ${D}/usr/lib/
-}
- 
