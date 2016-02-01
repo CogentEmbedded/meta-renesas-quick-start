@@ -1,0 +1,311 @@
+From bbaa244e367fc535c1134027da61d6c804e73311 Mon Sep 17 00:00:00 2001
+From: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+Date: Thu, 29 Jan 2015 18:21:32 +0300
+Subject: [PATCH 15/29] Add wayland lib
+
+
+Signed-off-by: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+---
+ configure.ac                     |    1 +
+ gst-libs/gst/Makefile.am         |    8 ++-
+ gst-libs/gst/wayland/Makefile.am |   26 ++++++++
+ gst-libs/gst/wayland/wayland.c   |  129 ++++++++++++++++++++++++++++++++++++++
+ gst-libs/gst/wayland/wayland.h   |   85 +++++++++++++++++++++++++
+ 5 files changed, 247 insertions(+), 2 deletions(-)
+ create mode 100644 gst-libs/gst/wayland/Makefile.am
+ create mode 100644 gst-libs/gst/wayland/wayland.c
+ create mode 100644 gst-libs/gst/wayland/wayland.h
+
+diff --git a/configure.ac b/configure.ac
+index cda2a41..3aa78c3 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -2416,6 +2416,7 @@ gst-libs/gst/interfaces/Makefile
+ gst-libs/gst/codecparsers/Makefile
+ gst-libs/gst/mpegts/Makefile
+ gst-libs/gst/uridownloader/Makefile
++gst-libs/gst/wayland/Makefile
+ sys/Makefile
+ sys/dshowdecwrapper/Makefile
+ sys/acmenc/Makefile
+diff --git a/gst-libs/gst/Makefile.am b/gst-libs/gst/Makefile.am
+index 1d6cc35..34976de 100644
+--- a/gst-libs/gst/Makefile.am
++++ b/gst-libs/gst/Makefile.am
+@@ -2,9 +2,13 @@ if HAVE_EGL
+ EGL_DIR = egl
+ endif
+ 
++if USE_WAYLAND
++WAYLAND_DIR=wayland
++endif
++
+ SUBDIRS = interfaces basecamerabinsrc codecparsers \
+-	 insertbin uridownloader mpegts $(EGL_DIR)
++	 insertbin uridownloader mpegts $(EGL_DIR) $(WAYLAND_DIR)
+ 
+ noinst_HEADERS = gst-i18n-plugin.h gettext.h glib-compat-private.h
+ DIST_SUBDIRS = interfaces egl basecamerabinsrc codecparsers \
+-	insertbin uridownloader mpegts
++	insertbin uridownloader mpegts wayland
+diff --git a/gst-libs/gst/wayland/Makefile.am b/gst-libs/gst/wayland/Makefile.am
+new file mode 100644
+index 0000000..0344598
+--- /dev/null
++++ b/gst-libs/gst/wayland/Makefile.am
+@@ -0,0 +1,26 @@
++lib_LTLIBRARIES = libgstwayland-@GST_API_VERSION@.la
++
++libgstwayland_@GST_API_VERSION@_la_SOURCES = wayland.c
++
++libgstwayland_@GST_API_VERSION@includedir = \
++	$(includedir)/gstreamer-@GST_API_VERSION@/gst/wayland
++
++libgstwayland_@GST_API_VERSION@_la_CFLAGS = \
++	$(GST_PLUGINS_BAD_CFLAGS) \
++	$(GST_PLUGINS_BASE_CFLAGS) \
++	$(GST_CFLAGS) \
++	$(WAYLAND_CFLAGS)
++
++libgstwayland_@GST_API_VERSION@_la_LIBADD = \
++	$(GST_LIBS) \
++	$(WAYLAND_LIBS) \
++	-lgstvideo-$(GST_API_VERSION)
++
++libgstwayland_@GST_API_VERSION@_la_LDFLAGS = \
++	$(GST_LIB_LDFLAGS) \
++	$(GST_ALL_LDFLAGS) \
++	$(GST_LT_LDFLAGS)
++
++noinst_HEADERS = \
++	wayland.h
++
+diff --git a/gst-libs/gst/wayland/wayland.c b/gst-libs/gst/wayland/wayland.c
+new file mode 100644
+index 0000000..6e7fefa
+--- /dev/null
++++ b/gst-libs/gst/wayland/wayland.c
+@@ -0,0 +1,129 @@
++/*
++ * GStreamer Wayland Library
++ * Copyright (C) 2014 Collabora Ltd.
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Library General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Library General Public License for more details.
++ *
++ * You should have received a copy of the GNU Library General Public
++ * License along with this library; if not, write to the
++ * Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
++ * Boston, MA 02110-1301, USA.
++ */
++
++#ifdef HAVE_CONFIG_H
++#include "config.h"
++#endif
++
++#include <gst/wayland/wayland.h>
++#include <gst/video/videooverlay.h>
++
++gboolean
++gst_is_wayland_display_handle_need_context_message (GstMessage * msg)
++{
++  const gchar *type = NULL;
++
++  g_return_val_if_fail (GST_IS_MESSAGE (msg), FALSE);
++
++  if (GST_MESSAGE_TYPE (msg) == GST_MESSAGE_NEED_CONTEXT &&
++      gst_message_parse_context_type (msg, &type)) {
++    return !g_strcmp0 (type, GST_WAYLAND_DISPLAY_HANDLE_CONTEXT_TYPE);
++  }
++
++  return FALSE;
++}
++
++GstContext *
++gst_wayland_display_handle_context_new (struct wl_display * display)
++{
++  GstContext *context =
++      gst_context_new (GST_WAYLAND_DISPLAY_HANDLE_CONTEXT_TYPE, TRUE);
++  gst_structure_set (gst_context_writable_structure (context),
++      "handle", G_TYPE_POINTER, display, NULL);
++  return context;
++}
++
++struct wl_display *
++gst_wayland_display_handle_context_get_handle (GstContext * context)
++{
++  const GstStructure *s;
++  struct wl_display *display;
++
++  g_return_val_if_fail (GST_IS_CONTEXT (context), NULL);
++
++  s = gst_context_get_structure (context);
++  gst_structure_get (s, "handle", G_TYPE_POINTER, &display, NULL);
++  return display;
++}
++
++
++G_DEFINE_INTERFACE (GstWaylandVideo, gst_wayland_video, GST_TYPE_VIDEO_OVERLAY);
++
++static void
++gst_wayland_video_default_init (GstWaylandVideoInterface * klass)
++{
++  (void) klass;
++}
++
++/**
++ * gst_wayland_video_begin_geometry_change:
++ *
++ * Notifies the video sink that we are about to change its
++ * geometry (probably using set_render_rectangle()). This is useful
++ * in order to allow the sink to synchronize resizing/moving of the
++ * video area with the parent surface and avoid glitches, in cases
++ * where the video area is being painted asynchronously from another
++ * thread, like in waylandsink.
++ *
++ * Please note that any calls to this method MUST be matched by
++ * calls to end_geometry_change() and AFTER the parent surface has
++ * commited its geometry changes.
++ */
++void
++gst_wayland_video_begin_geometry_change (GstWaylandVideo * video)
++{
++  GstWaylandVideoInterface *iface;
++
++  g_return_if_fail (video != NULL);
++  g_return_if_fail (GST_IS_WAYLAND_VIDEO (video));
++
++  iface = GST_WAYLAND_VIDEO_GET_INTERFACE (video);
++
++  if (iface->begin_geometry_change) {
++    iface->begin_geometry_change (video);
++  }
++}
++
++/**
++ * gst_wayland_video_end_geometry_change:
++ *
++ * Notifies the video sink that we just finished changing the
++ * geometry of both itself and its parent surface. This should
++ * have been earlier preceeded by a call to begin_geometry_change()
++ * which notified the sink before any of these changes had happened.
++ *
++ * It is important to call this method only AFTER the parent surface
++ * has commited its geometry changes, otherwise no synchronization
++ * is actually achieved.
++ */
++void
++gst_wayland_video_end_geometry_change (GstWaylandVideo * video)
++{
++  GstWaylandVideoInterface *iface;
++
++  g_return_if_fail (video != NULL);
++  g_return_if_fail (GST_IS_WAYLAND_VIDEO (video));
++
++  iface = GST_WAYLAND_VIDEO_GET_INTERFACE (video);
++
++  if (iface->end_geometry_change) {
++    iface->end_geometry_change (video);
++  }
++}
+diff --git a/gst-libs/gst/wayland/wayland.h b/gst-libs/gst/wayland/wayland.h
+new file mode 100644
+index 0000000..ff4b2db
+--- /dev/null
++++ b/gst-libs/gst/wayland/wayland.h
+@@ -0,0 +1,85 @@
++/*
++ * GStreamer Wayland Library
++ * Copyright (C) 2014 Collabora Ltd.
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Library General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Library General Public License for more details.
++ *
++ * You should have received a copy of the GNU Library General Public
++ * License along with this library; if not, write to the
++ * Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
++ * Boston, MA 02110-1301, USA.
++ */
++
++#ifndef __GST_WAYLAND_H__
++#define __GST_WAYLAND_H__
++
++#ifndef GST_USE_UNSTABLE_API
++#warning "The GStreamer wayland library is unstable API and may change in future."
++#warning "You can define GST_USE_UNSTABLE_API to avoid this warning."
++#endif
++
++#include <gst/gst.h>
++#include <wayland-client.h>
++
++G_BEGIN_DECLS
++
++/* The type of GstContext used to pass the wl_display pointer
++ * from the application to the sink */
++#define GST_WAYLAND_DISPLAY_HANDLE_CONTEXT_TYPE "GstWaylandDisplayHandleContextType"
++
++gboolean gst_is_wayland_display_handle_need_context_message (GstMessage * msg);
++GstContext *
++gst_wayland_display_handle_context_new (struct wl_display * display);
++struct wl_display *
++gst_wayland_display_handle_context_get_handle (GstContext * context);
++
++
++#define GST_TYPE_WAYLAND_VIDEO \
++    (gst_wayland_video_get_type ())
++#define GST_WAYLAND_VIDEO(obj) \
++    (G_TYPE_CHECK_INSTANCE_CAST ((obj), GST_TYPE_WAYLAND_VIDEO, GstWaylandVideo))
++#define GST_IS_WAYLAND_VIDEO(obj) \
++    (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GST_TYPE_WAYLAND_VIDEO))
++#define GST_WAYLAND_VIDEO_GET_INTERFACE(inst) \
++    (G_TYPE_INSTANCE_GET_INTERFACE ((inst), GST_TYPE_WAYLAND_VIDEO, GstWaylandVideoInterface))
++
++/**
++ * GstWaylandVideo:
++ *
++ * Opaque #GstWaylandVideo interface structure
++ */
++typedef struct _GstWaylandVideo GstWaylandVideo;
++typedef struct _GstWaylandVideoInterface GstWaylandVideoInterface;
++
++
++/**
++ * GstWaylandVideoInterface:
++ * @iface: parent interface type.
++ *
++ * #GstWaylandVideo interface
++ */
++struct _GstWaylandVideoInterface {
++  GTypeInterface iface;
++
++  /* virtual functions */
++  void (*begin_geometry_change)    (GstWaylandVideo *video);
++  void (*end_geometry_change)     (GstWaylandVideo *video);
++};
++
++GType   gst_wayland_video_get_type (void);
++
++/* virtual function wrappers */
++void gst_wayland_video_begin_geometry_change (GstWaylandVideo * video);
++void gst_wayland_video_end_geometry_change (GstWaylandVideo * video);
++
++G_END_DECLS
++
++#endif /* __GST_WAYLAND_H__ */
+-- 
+1.7.10.4
+

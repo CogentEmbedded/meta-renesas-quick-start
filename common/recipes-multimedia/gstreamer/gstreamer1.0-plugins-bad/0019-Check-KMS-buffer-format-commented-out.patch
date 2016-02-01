@@ -1,0 +1,92 @@
+From e217c4d01e2f50e6d4d6d991d8edae9d8d6c5969 Mon Sep 17 00:00:00 2001
+From: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+Date: Thu, 12 Feb 2015 16:50:45 +0300
+Subject: [PATCH 19/29] Check KMS buffer format (commented out)
+
+
+Signed-off-by: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+---
+ ext/wayland/gstwaylandsink.c |   52 ++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 52 insertions(+)
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index 28bc59b..d7b108e 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -472,7 +472,34 @@ gst_wayland_sink_get_caps (GstBaseSink * bsink, GstCaps * filter)
+ 
+   return caps;
+ }
++/*
++#ifdef HAVE_WAYLAND_KMS
++static gboolean
++gst_wayland_sink_is_kms_color_format_supported (GstWaylandSink * sink,
++    uint32_t wl_fmt)
++{
++  GList *l;
++  gboolean ret = FALSE;
++  GstWlDisplay *display;
++
++  display = sink->display;
++
++  if (display->support_fmt_list == NULL)
++    return FALSE;
++
++  for (l = display->support_fmt_list; l; l = l->next) {
++    uint32_t *fmt = l->data;
+ 
++    if (*fmt == wl_fmt) {
++      ret = TRUE;
++      break;
++    }
++  }
++
++  return ret;
++}
++#endif
++*/
+ static gboolean
+ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
+ {
+@@ -507,6 +534,25 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
+   if (i >= formats->len)
+     goto unsupported_format;
+ 
++#if 0
++#ifdef HAVE_WAYLAND_KMS
++  if (sink->display->/*wl_*/kms) {
++	formats = sink->display->support_fmt_list;
++    for (i = 0; i < formats->len; i++) {
++      if (g_array_index (formats, uint32_t, i) == format)
++        break;
++    }
++    if (i >= formats->len)
++      goto unsupported_format_kms;
++/*
++    if (!gst_wayland_sink_is_kms_color_format_supported (sink, format)) {
++      goto unsupported_format_kms;
++    }
++*/
++  }
++#endif
++#endif
++
+   /* create a new pool for the new configuration */
+   newpool = gst_wayland_buffer_pool_new (sink->display);
+   if (!newpool)
+@@ -538,6 +584,12 @@ invalid_format:
+         "Could not locate image format from caps %" GST_PTR_FORMAT, caps);
+     return FALSE;
+   }
++unsupported_format_kms:
++  {
++    GST_DEBUG_OBJECT (sink, "Format %s is not supported by KMS",
++        gst_wayland_format_to_string (format));
++    return FALSE;
++  }
+ unsupported_format:
+   {
+     GST_DEBUG_OBJECT (sink, "Format %s is not available on the display",
+-- 
+1.7.10.4
+

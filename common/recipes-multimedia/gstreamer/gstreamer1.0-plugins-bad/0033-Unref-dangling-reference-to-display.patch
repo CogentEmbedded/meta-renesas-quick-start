@@ -1,0 +1,24 @@
+From 99829039b6ffe66423f2274cb9d340a432271ee6 Mon Sep 17 00:00:00 2001
+From: Andrey Vostrikov <andrey.vostrikov@cogentembedded.com>
+Date: Mon, 19 Oct 2015 12:31:16 +0300
+Subject: [PATCH] Unref dangling reference to display
+
+---
+ ext/wayland/waylandpool.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/ext/wayland/waylandpool.c b/ext/wayland/waylandpool.c
+index 0facb02..de5edf2 100644
+--- a/ext/wayland/waylandpool.c
++++ b/ext/wayland/waylandpool.c
+@@ -70,6 +70,7 @@ gst_wl_meta_free (GstWlMeta * meta, GstBuffer * buffer)
+     kms_bo_destroy (&meta->kms_bo);
+   }
+ #endif
++  g_object_unref (meta->display);
+   wl_buffer_destroy (meta->wbuffer);
+   meta->wbuffer = NULL;
+ }
+-- 
+2.1.4
+

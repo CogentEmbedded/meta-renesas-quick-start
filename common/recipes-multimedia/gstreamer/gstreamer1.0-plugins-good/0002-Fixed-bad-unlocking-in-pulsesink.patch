@@ -1,0 +1,25 @@
+From 70e58f285b53e00300a154250da7dca77d5c0e08 Mon Sep 17 00:00:00 2001
+From: Andrey Vostrikov <andrey.vostrikov@cogentembedded.com>
+Date: Fri, 2 Oct 2015 17:04:43 +0300
+Subject: [PATCH] Fixed bad unlocking in pulsesink
+
+---
+ ext/pulse/pulsesink.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ext/pulse/pulsesink.c b/ext/pulse/pulsesink.c
+index 6cbbf8a..d5defee 100644
+--- a/ext/pulse/pulsesink.c
++++ b/ext/pulse/pulsesink.c
+@@ -2790,7 +2790,7 @@ no_mainloop:
+ no_buffer:
+   {
+     GST_DEBUG_OBJECT (pulsesink, "we have no ringbuffer");
+-    goto unlock;
++    return NULL;
+   }
+ info_failed:
+   {
+-- 
+2.1.4
+

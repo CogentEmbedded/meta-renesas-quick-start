@@ -1,0 +1,27 @@
+From 6a10d16efe8dde16ccddbcc5a119926058ca8423 Mon Sep 17 00:00:00 2001
+From: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+Date: Fri, 6 Mar 2015 16:55:35 +0300
+Subject: [PATCH 29/29] Fix debug output
+
+
+Signed-off-by: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+---
+ ext/wayland/gstwaylandsink.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index 1f78688..42db2e5 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -902,7 +902,7 @@ gst_wayland_sink_query (GstBaseSink * bsink, GstQuery * query)
+       for (i = 0; i < n_planes; i++) {
+         dmabuf[i] = g_array_index (dmabuf_array, gint, i);
+         stride[i] = g_array_index (stride_array, gint, i);
+-        GST_DEBUG_OBJECT (sink, "plane:%d dmabuf:%d stride:%d\n", i, dmabuf[i],
++        GST_DEBUG_OBJECT (sink, "plane:%d dmabuf:%d stride:%d", i, dmabuf[i],
+             stride[i]);
+       }
+ 
+-- 
+1.7.10.4
+

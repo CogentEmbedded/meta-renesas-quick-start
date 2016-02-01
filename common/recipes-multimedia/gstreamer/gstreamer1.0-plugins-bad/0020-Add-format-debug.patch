@@ -1,0 +1,36 @@
+From f8ceb64d8c61182a4a968fba8c56d4e4c6cb7661 Mon Sep 17 00:00:00 2001
+From: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+Date: Thu, 12 Feb 2015 16:56:23 +0300
+Subject: [PATCH 20/29] Add format debug
+
+
+Signed-off-by: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+---
+ ext/wayland/wldisplay.c |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/ext/wayland/wldisplay.c b/ext/wayland/wldisplay.c
+index 03d6c50..f1c1402 100644
+--- a/ext/wayland/wldisplay.c
++++ b/ext/wayland/wldisplay.c
+@@ -135,6 +135,8 @@ shm_format (void *data, struct wl_shm *wl_shm, uint32_t format)
+   GstWlDisplay *self = data;
+ 
+   g_array_append_val (self->formats, format);
++
++  GST_DEBUG ("shm_formats = 0x%08x %s", format, gst_wayland_format_to_string(format));
+ }
+ 
+ static const struct wl_shm_listener shm_listener = {
+@@ -163,6 +165,8 @@ kms_format (void *data, struct wl_kms *wl_shm, uint32_t format)
+   GstWlDisplay *self = data;
+ 
+   g_array_append_val (self->support_fmt_list, format);
++
++  GST_DEBUG ("kms_formats = 0x%08x %s", format, gst_wayland_format_to_string(format));
+ }
+ 
+ static void
+-- 
+1.7.10.4
+

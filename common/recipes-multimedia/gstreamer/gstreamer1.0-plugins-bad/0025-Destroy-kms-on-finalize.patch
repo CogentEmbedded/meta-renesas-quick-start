@@ -1,0 +1,30 @@
+From 55ec6867bbe8dd1db440468dbaf0c8147371ef1e Mon Sep 17 00:00:00 2001
+From: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+Date: Tue, 17 Feb 2015 15:58:31 +0300
+Subject: [PATCH 25/29] Destroy kms on finalize
+
+
+Signed-off-by: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+---
+ ext/wayland/wldisplay.c |    5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/ext/wayland/wldisplay.c b/ext/wayland/wldisplay.c
+index f1c1402..de79e12 100644
+--- a/ext/wayland/wldisplay.c
++++ b/ext/wayland/wldisplay.c
+@@ -67,6 +67,11 @@ gst_wl_display_finalize (GObject * gobject)
+   g_array_unref (self->support_fmt_list);
+ #endif
+ 
++#ifdef HAVE_WAYLAND_KMS
++  if (self->kms)
++    wl_kms_destroy(self->kms);
++#endif
++
+   if (self->shm)
+     wl_shm_destroy (self->shm);
+ 
+-- 
+1.7.10.4
+

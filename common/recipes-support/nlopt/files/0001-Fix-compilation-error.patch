@@ -1,0 +1,25 @@
+From 994c3fdbde7ce1b2a31d4bd3053aed7cdc857760 Mon Sep 17 00:00:00 2001
+From: Petr Nechaev <petr.nechaev@cogentembedded.com>
+Date: Sat, 31 Oct 2015 15:24:11 +0300
+Subject: [PATCH 1/1] Fix compilation error
+
+---
+ swig/Makefile.am | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/swig/Makefile.am b/swig/Makefile.am
+index 5ccbfe1..d55ac28 100644
+--- a/swig/Makefile.am
++++ b/swig/Makefile.am
+@@ -44,8 +44,6 @@ if MAINTAINER_MODE
+ 
+ nlopt-guile.cpp nlopt.scm.in: $(SWIG_SRC) nlopt-guile.i $(HDR)
+ 	swig -I$(top_srcdir)/api -outdir $(builddir) -c++ -guile -scmstub -o $@ $(srcdir)/nlopt.i
+-	rm -f nlopt.scm.in
+-	mv nlopt.scm nlopt.scm.in
+ 
+ nlopt-python.cpp nlopt.py: $(SWIG_SRC) nlopt-python.i numpy.i $(HDR)
+ 	swig -I$(top_srcdir)/api -outdir $(builddir) -c++ -python -o $@ $(srcdir)/nlopt.i
+-- 
+2.4.3
+

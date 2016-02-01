@@ -1,0 +1,40 @@
+From be7e4bdc28f116cae2780ba3eb14353d443e480f Mon Sep 17 00:00:00 2001
+From: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+Date: Fri, 6 Mar 2015 16:46:32 +0300
+Subject: [PATCH 26/29] Remove buffer from hush table whet freeing wl meta
+
+
+Signed-off-by: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+---
+ ext/wayland/waylandpool.c |    7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/ext/wayland/waylandpool.c b/ext/wayland/waylandpool.c
+index c27721e..1ffaa5f 100644
+--- a/ext/wayland/waylandpool.c
++++ b/ext/wayland/waylandpool.c
+@@ -56,7 +56,13 @@ gst_wl_meta_api_get_type (void)
+ static void
+ gst_wl_meta_free (GstWlMeta * meta, GstBuffer * buffer)
+ {
++  GstWaylandBufferPool *pool = meta->pool;
+   GST_DEBUG ("destroying wl_buffer %p", meta->wbuffer);
++
++  g_mutex_lock (&pool->buffers_map_mutex);
++  g_hash_table_remove (pool->buffers_map, meta->wbuffer);
++  g_mutex_unlock (&pool->buffers_map_mutex);
++
+ #ifdef HAVE_WAYLAND_KMS
+   if (meta->kms_bo) {
+     if (meta->data)
+@@ -65,6 +71,7 @@ gst_wl_meta_free (GstWlMeta * meta, GstBuffer * buffer)
+   }
+ #endif
+   wl_buffer_destroy (meta->wbuffer);
++  meta->wbuffer = NULL;
+ }
+ 
+ const GstMetaInfo *
+-- 
+1.7.10.4
+

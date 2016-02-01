@@ -1,0 +1,46 @@
+From b84487d7ec759da567a8356fe9913993bd142db7 Mon Sep 17 00:00:00 2001
+From: Petr Nechaev <petr.nechaev@cogentembedded.com>
+Date: Thu, 28 May 2015 21:08:32 +0300
+Subject: [PATCH] Add parsing of invalid IPv6 address specification in URL
+
+Correct IPv6 address specification in an URL, according to RFC 2732, is:
+http://[1080::8:800:200C:417A]:80/foo
+But some clients may send invalid requests without brackets similar to
+http://1080::8:800:200C:417A:80/foo
+This patch allows these addresses to be correctly parsed.
+
+If the IPv6 address ends with a segment composed only of digits like
+http://1080::8:800:200C:4170/foo,
+these digits will be treated as port (incorrectly!), but it is better
+for general-purpose HTTP servers than rejecting the request with 400 Bad
+Request.
+---
+ libsoup/soup-uri.c | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/libsoup/soup-uri.c b/libsoup/soup-uri.c
+index b16927d..7362261 100644
+--- a/libsoup/soup-uri.c
++++ b/libsoup/soup-uri.c
+@@ -351,7 +351,17 @@ soup_uri_new_with_base (SoupURI *base, const char *uri_string)
+ 			} else
+ 				uri->host = g_strndup (uri_string, hostend - uri_string);
+ 		} else {
+-			colon = memchr (uri_string, ':', path - uri_string);
++			const char *s;
++
++			/* Locate a colon before trailing digits, to detect invalid IPv6 addresses. */
++			colon = NULL;
++			for (s = path - 1; s > uri_string; s--)
++				if (G_UNLIKELY(*s == ':')) {
++					colon = s;
++					break;
++				} else if (!g_ascii_isdigit(*s))
++					break;
++
+ 			hostend = colon ? colon : path;
+ 			uri->host = soup_uri_decoded_copy (uri_string,
+ 							   hostend - uri_string, NULL);
+-- 
+1.9.3
+

@@ -1,0 +1,44 @@
+From 7ef562e6006283ac3d1ce00cd7c51d9d367a0dc9 Mon Sep 17 00:00:00 2001
+From: Petr Nechaev <petr.nechaev@cogentembedded.com>
+Date: Wed, 29 Apr 2015 02:30:21 +0300
+Subject: [PATCH] Parse requests with any HTTP-compatible protocols like
+ RTSP/1.0
+
+Allow to extract version information from correct requests like
+GET /stream-id RTSP/1.0
+---
+ libsoup/soup-headers.c | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/libsoup/soup-headers.c b/libsoup/soup-headers.c
+index 9c4c808..98fc3b5 100644
+--- a/libsoup/soup-headers.c
++++ b/libsoup/soup-headers.c
+@@ -170,7 +170,7 @@ soup_headers_parse_request (const char          *str,
+ 			    SoupHTTPVersion     *ver) 
+ {
+ 	const char *method, *method_end, *path, *path_end;
+-	const char *version, *version_end, *headers;
++	const char *version, *version_end, *headers, *slash;
+ 	unsigned long major_version, minor_version;
+ 	char *p;
+ 
+@@ -214,10 +214,12 @@ soup_headers_parse_request (const char          *str,
+ 	if (version + 8 >= str + len)
+ 		return SOUP_STATUS_BAD_REQUEST;
+ 
+-	if (strncmp (version, "HTTP/", 5) != 0 ||
+-	    !g_ascii_isdigit (version[5]))
++	if ((slash = memchr (version, '/', 5)) == NULL)
+ 		return SOUP_STATUS_BAD_REQUEST;
+-	major_version = strtoul (version + 5, &p, 10);
++	if (!g_ascii_isdigit (slash[1]))
++		return SOUP_STATUS_BAD_REQUEST;
++
++	major_version = strtoul (slash + 1, &p, 10);
+ 	if (*p != '.' || !g_ascii_isdigit (p[1]))
+ 		return SOUP_STATUS_BAD_REQUEST;
+ 	minor_version = strtoul (p + 1, &p, 10);
+-- 
+1.9.3
+

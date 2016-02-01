@@ -1,0 +1,49 @@
+From 3f91fa611c98a5898419866e127afe251ddbca8e Mon Sep 17 00:00:00 2001
+From: Andrey Vostrikov <andrey.vostrikov@cogentembedded.com>
+Date: Wed, 30 Sep 2015 15:13:41 +0300
+Subject: [PATCH] Use timeout on wayland display poll
+
+---
+ ext/wayland/wldisplay.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/ext/wayland/wldisplay.c b/ext/wayland/wldisplay.c
+index 4eb4232..202f812 100644
+--- a/ext/wayland/wldisplay.c
++++ b/ext/wayland/wldisplay.c
+@@ -233,6 +233,7 @@ gst_wl_display_thread_run (gpointer data)
+ {
+   GstWlDisplay *self = data;
+   GstPollFD pollfd = GST_POLL_FD_INIT;
++  gint ret;
+ 
+   pollfd.fd = wl_display_get_fd (self->display);
+   gst_poll_add_fd (self->wl_fd_poll, &pollfd);
+@@ -244,17 +245,22 @@ gst_wl_display_thread_run (gpointer data)
+       wl_display_dispatch_queue_pending (self->display, self->queue);
+     wl_display_flush (self->display);
+ 
+-    if (gst_poll_wait (self->wl_fd_poll, GST_CLOCK_TIME_NONE) < 0) {
++    ret = gst_poll_wait (self->wl_fd_poll, GST_MSECOND);
++
++    if (ret < 0) {
+       gboolean normal = (errno == EBUSY);
+       wl_display_cancel_read (self->display);
+       if (normal)
+         break;
+       else
+         goto error;
+-    } else {
++    } else if (ret > 0) {
+       wl_display_read_events (self->display);
+       wl_display_dispatch_queue_pending (self->display, self->queue);
++    } else { /* timeout */
++        wl_display_cancel_read (self->display);
+     }
++
+   }
+ 
+   return NULL;
+-- 
+2.1.4
+

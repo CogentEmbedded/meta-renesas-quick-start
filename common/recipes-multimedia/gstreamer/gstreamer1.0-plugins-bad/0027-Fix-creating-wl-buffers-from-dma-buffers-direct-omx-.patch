@@ -1,0 +1,185 @@
+From 38f3d9e375f4fe57cdd549b810c4b187db19a567 Mon Sep 17 00:00:00 2001
+From: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+Date: Fri, 6 Mar 2015 16:47:49 +0300
+Subject: [PATCH 27/29] Fix creating wl buffers from dma buffers (direct omx
+ to wayland pipe)
+
+
+Signed-off-by: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+---
+ ext/wayland/waylandpool.c |  152 +++++++++++++++++++--------------------------
+ 1 file changed, 63 insertions(+), 89 deletions(-)
+
+diff --git a/ext/wayland/waylandpool.c b/ext/wayland/waylandpool.c
+index 1ffaa5f..0facb02 100644
+--- a/ext/wayland/waylandpool.c
++++ b/ext/wayland/waylandpool.c
+@@ -90,95 +90,6 @@ gst_wl_meta_get_info (void)
+   return wl_meta_info;
+ }
+ 
+-#ifdef HAVE_WAYLAND_KMS
+-typedef struct
+-{
+-  uint32_t wl_format;
+-  GstVideoFormat gst_format;
+-} wl_VideoFormat;
+-
+-static const wl_VideoFormat formats[] = {
+-#if G_BYTE_ORDER == G_BIG_ENDIAN
+-  {WL_SHM_FORMAT_XRGB8888, GST_VIDEO_FORMAT_xRGB},
+-  {WL_SHM_FORMAT_ARGB8888, GST_VIDEO_FORMAT_ARGB},
+-#else
+-  {WL_SHM_FORMAT_XRGB8888, GST_VIDEO_FORMAT_BGRx},
+-  {WL_SHM_FORMAT_ARGB8888, GST_VIDEO_FORMAT_BGRA},
+-#endif
+-};
+-
+-static uint32_t
+-gst_wayland_format_to_wl_format (GstVideoFormat format)
+-{
+-  guint i;
+-
+-  for (i = 0; i < G_N_ELEMENTS (formats); i++)
+-    if (formats[i].gst_format == format)
+-      return formats[i].wl_format;
+-
+-  GST_WARNING ("wayland video format not found");
+-  return -1;
+-}
+-
+-static void
+-wayland_buffer_release (void *data, struct wl_buffer *buffer)
+-{
+-  GstBuffer *buf = (GstBuffer *) data;
+-  gst_buffer_unref (buf);
+-}
+-
+-static const struct wl_buffer_listener wayland_buffer_listener = {
+-  .release = wayland_buffer_release
+-};
+-
+-GstBuffer *
+-gst_wayland_buffer_pool_create_buffer_from_dmabuf (GstWaylandBufferPool * wpool,
+-    gint dmabuf[GST_VIDEO_MAX_PLANES], GstAllocator * allocator, gint width,
+-    gint height, gint in_stride[GST_VIDEO_MAX_PLANES], GstVideoFormat format,
+-    gint n_planes)
+-{
+-  GstBuffer *buffer;
+-  GstWlMeta *wmeta;
+-  GstWlDisplay *display;
+-  gsize offset[GST_VIDEO_MAX_PLANES] = { 0 };
+-  gint stride[GST_VIDEO_MAX_PLANES] = { 0 };
+-  gint i;
+-
+-  display = wpool->display;
+-
+-  buffer = gst_buffer_new ();
+-
+-  wmeta = (GstWlMeta *) gst_buffer_add_meta (buffer, GST_WL_META_INFO, NULL);
+-  wmeta->display = gst_object_ref (display);
+-
+-  wmeta->wbuffer =
+-      wl_kms_create_mp_buffer (display->kms, width, height,
+-      gst_wayland_format_to_wl_format (format), dmabuf[0], in_stride[0],
+-      dmabuf[1], in_stride[1], dmabuf[2], in_stride[2]);
+-  wl_proxy_set_queue ((struct wl_proxy *) wmeta->wbuffer,
+-      display->queue);
+-  wl_buffer_add_listener (wmeta->wbuffer, &wayland_buffer_listener, buffer);
+-
+-  for (i = 0; i < n_planes; i++) {
+-    gst_buffer_append_memory (buffer,
+-        gst_dmabuf_allocator_alloc (allocator, dmabuf[i], 0));
+-
+-    stride[i] = in_stride[i];
+-  }
+-
+-  wmeta->data = NULL;
+-  wmeta->kms_bo = NULL;
+-
+-  gst_buffer_add_video_meta_full (buffer, GST_VIDEO_FRAME_FLAG_NONE, format,
+-      width, height, n_planes, offset, stride);
+-
+-  /* To avoid deattaching meta data when a buffer returns to the buffer pool */
+-  GST_META_FLAG_SET (wmeta, GST_META_FLAG_POOLED);
+-
+-  return buffer;
+-}
+-#endif
+-
+ /* bufferpool */
+ static void gst_wayland_buffer_pool_finalize (GObject * object);
+ static gboolean gst_wayland_buffer_pool_set_config (GstBufferPool * pool,
+@@ -454,6 +365,69 @@ done:
+ }
+ 
+ #ifdef HAVE_WAYLAND_KMS
++GstBuffer *
++gst_wayland_buffer_pool_create_buffer_from_dmabuf (GstWaylandBufferPool * pool,
++    gint dmabuf[GST_VIDEO_MAX_PLANES], GstAllocator * allocator, gint width,
++    gint height, gint in_stride[GST_VIDEO_MAX_PLANES], GstVideoFormat format,
++    gint n_planes)
++{
++  GstBuffer *buffer;
++  GstWlMeta *meta;
++  GstWlDisplay *display;
++  gsize offset[GST_VIDEO_MAX_PLANES] = { 0 };
++  gint stride[GST_VIDEO_MAX_PLANES] = { 0 };
++  gint i;
++  gint wl_format;
++
++  display = pool->display;
++
++  buffer = gst_buffer_new ();
++
++  meta = (GstWlMeta *) gst_buffer_add_meta (buffer, GST_WL_META_INFO, NULL);
++  meta->display = gst_object_ref (display);
++
++  meta->pool = pool;
++  meta->used_by_compositor = FALSE;
++
++  wl_format = gst_video_format_to_wayland_format (format);
++  GST_DEBUG ("!Format %s", gst_wayland_format_to_string(wl_format));
++  for (i = 0; i < 3; i++)
++    GST_DEBUG(" %d: dmabuf %d stride %d", i, dmabuf[i], in_stride[i]);
++  meta->wbuffer =
++      wl_kms_create_mp_buffer (display->kms, width, height,
++      gst_video_format_to_wayland_format (format), dmabuf[0], in_stride[0],
++      dmabuf[1], in_stride[1], dmabuf[2], in_stride[2]);
++  GST_DEBUG("!meta->wbuffer = %p", meta->wbuffer);
++  wl_proxy_set_queue ((struct wl_proxy *) meta->wbuffer,
++      display->queue);
++
++  for (i = 0; i < n_planes; i++) {
++    GST_DEBUG("!append %d", i);
++    GST_DEBUG("! dmabuf %d, stride %d", dmabuf[i], in_stride[i]);
++    gst_buffer_append_memory (buffer,
++        gst_dmabuf_allocator_alloc (allocator, dmabuf[i], 0));
++
++    stride[i] = in_stride[i];
++  }
++
++  meta->data = NULL;
++  meta->kms_bo = NULL;
++
++  gst_buffer_add_video_meta_full (buffer, GST_VIDEO_FRAME_FLAG_NONE, format,
++      width, height, n_planes, offset, stride);
++
++  /* To avoid deattaching meta data when a buffer returns to the buffer pool */
++  GST_META_FLAG_SET (meta, GST_META_FLAG_POOLED);
++
++  /* configure listening to wl_buffer.release */
++  g_mutex_lock (&pool->buffers_map_mutex);
++  g_hash_table_insert (pool->buffers_map, meta->wbuffer, buffer);
++  g_mutex_unlock (&pool->buffers_map_mutex);
++  wl_buffer_add_listener (meta->wbuffer, &buffer_listener, pool);
++
++  return buffer;
++}
++
+ static GstWlMeta *
+ gst_buffer_add_wayland_meta_kms (GstBuffer * buffer,
+     GstWaylandBufferPool * wpool)
+-- 
+1.7.10.4
+

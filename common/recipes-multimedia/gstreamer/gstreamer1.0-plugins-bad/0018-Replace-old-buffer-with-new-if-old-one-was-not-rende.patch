@@ -1,0 +1,45 @@
+From 69443c4ea31c9be5faeaf0282a2e92b39b6c393e Mon Sep 17 00:00:00 2001
+From: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+Date: Thu, 12 Feb 2015 16:49:34 +0300
+Subject: [PATCH 18/29] Replace old buffer with new if old one was not
+ rendered yet
+
+
+Signed-off-by: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+---
+ ext/wayland/gstwaylandsink.c |   11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index 0db964a..28bc59b 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -691,9 +691,11 @@ render_last_buffer (GstWaylandSink * sink)
+   meta = gst_buffer_get_wl_meta (sink->last_buffer);
+   surface = gst_wl_window_get_wl_surface (sink->window);
+ 
+-  g_atomic_int_set (&sink->redraw_pending, TRUE);
+-  callback = wl_surface_frame (surface);
+-  wl_callback_add_listener (callback, &frame_callback_listener, sink);
++  if (g_atomic_int_get (&sink->redraw_pending) == FALSE) {
++    g_atomic_int_set (&sink->redraw_pending, TRUE);
++    callback = wl_surface_frame (surface);
++    wl_callback_add_listener (callback, &frame_callback_listener, sink);
++  }
+ 
+   /* Here we essentially add a reference to the buffer. This represents
+    * the fact that the compositor is using the buffer and it should
+@@ -739,9 +741,8 @@ gst_wayland_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
+     sink->video_info_changed = FALSE;
+   }
+ 
+-  /* drop buffers until we get a frame callback */
+   if (g_atomic_int_get (&sink->redraw_pending) == TRUE)
+-    goto done;
++    GST_DEBUG("new buffer, while previous was not rendered");
+ 
+   if (G_UNLIKELY (sink->video_info_changed)) {
+     gst_wl_window_set_video_info (sink->window, &sink->video_info);
+-- 
+1.7.10.4
+
