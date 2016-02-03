@@ -9,6 +9,7 @@ PACKAGES = " \
 	packagegroup-opencv-sdk \
 	packagegroup-surroundview \
 	packagegroup-ptp \
+	packagegroup-perf-test \
 "
 
 AVB_RDEPENDS=" \
@@ -42,7 +43,6 @@ RDEPENDS_packagegroup-common = "\
     libext2fs \
     libss \
     dbus \
-    iperf \
     mm-init \
     can-utils libsocketcan \
     libgstapp-1.0 \
@@ -119,3 +119,8 @@ RDEPENDS_packagegroup-ptp =  '${@ " \
 	linuxptp \
 " if 'ptp' in '${DISTRO_FEATURES}' else ""}'
 
+RDEPENDS_packagegroup-perf-test = '${@ " \
+    glmark2 \
+    iperf \
+    cpuburn-neon \
+" if 'perf-test' in '${DISTRO_FEATURES}' else ""}'

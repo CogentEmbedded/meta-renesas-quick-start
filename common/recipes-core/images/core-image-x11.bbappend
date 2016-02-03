@@ -4,6 +4,7 @@ IMAGE_INSTALL_append = " \
 	packagegroup-opencv-sdk \
 	packagegroup-surroundview \
 	packagegroup-ptp \
+	packagegroup-perf-test \
 "
 
 CONFLICT_DISTRO_FEATURES = "wayland"
