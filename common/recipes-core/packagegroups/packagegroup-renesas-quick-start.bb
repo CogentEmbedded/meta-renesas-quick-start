@@ -82,7 +82,7 @@ RDEPENDS_packagegroup-qt5 =  '${@ " \
 #
 
 RDEPENDS_packagegroup-surroundview = '${@ " \
-    sv-demo-v1 \
+    utest-adas \
     spacenavd \
 " if 'surroundview' in '${DISTRO_FEATURES}' else ""}'
 
