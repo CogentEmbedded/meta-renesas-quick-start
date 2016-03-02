@@ -10,5 +10,7 @@ LIC_FILES_CHKSUM = " \
 	file://copying.txt;md5=6ba02d5f908587c6f3942e76bf6d92d6 \
 "
 
+ALLOW_EMPTY_${PN} = "1"
+
 FILES_${PN}-dev += "/usr/lib/cmake/"
 
