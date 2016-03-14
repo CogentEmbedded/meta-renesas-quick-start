@@ -9,6 +9,8 @@ S = "${WORKDIR}/git"
 STRIP_PV = "${@'${PV}'.replace('.','')}"
 SRCREV = "opencl${STRIP_PV}"
 
+PROVIDES = "virtual/ocl-headers"
+
 do_configure() {
 	# we check LIC_FILES_CHKSUM
 	echo "Done"
