@@ -90,7 +90,6 @@ RDEPENDS_packagegroup-opencv-sdk = '${@ " \
     opencv \
     opencv-apps \
     opencv-samples \
-    opencv \
     opencv-dbg \
     opencv-staticdev \
     python-opencv \
