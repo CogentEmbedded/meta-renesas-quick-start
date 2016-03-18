@@ -1,3 +1,4 @@
+FILESEXTRAPATHS_prepend := "${THISDIR}/${PN}:"
 
 # Workaround strange CMake 2.8.1 bug.  I do not understand it since ${AR} is set
 EXTRA_OECMAKE_class-native += "-DCMAKE_AR=/usr/bin/${AR}"
@@ -7,6 +8,11 @@ EXTRA_OECMAKE_class-native += "-DCMAKE_AR=/usr/bin/${AR}"
 LIC_FILES_CHKSUM = "file://LICENSE.TXT;md5=4c0bc17c954e99fd547528d938832bfa \
                     file://tools/clang/LICENSE.TXT;md5=82ed8fe1976ca709bbd81f4f10a48ccd \
                     "
+
+SRC_URI_append = " \
+	file://0001-Export-all-symbols-into-the-shared-library.patch \
+	file://0002-Fix-shared-lib-generation.patch \
+"
 
 DEPENDS_class-target += "clang-native"
 
@@ -21,7 +27,7 @@ EXTRA_OECMAKE_append_class-target = "\
                -DBUILD_SHARED_LIBS=False \
                -DLLVM_BUILD_LLVM_DYLIB=True \
                -DLLVM_DYLIB_EXPORT_ALL=True \
-	       -DLLVM_DYLIB_COMPONENTS:string="all;Support" \
+	       -DLLVM_DYLIB_COMPONENTS:string="all" \
 "
 
 do_configure_append_class-target() {
