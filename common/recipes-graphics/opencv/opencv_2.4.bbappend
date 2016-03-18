@@ -5,7 +5,7 @@ SRC_URI = "git://github.com/Itseez/opencv.git;branch=2.4 \
 "
 
 inherit cmake_qt5
-DEPENDS_remove = "${@bb.utils.contains("DISTRO_FEATURES", "qt5", "", "qtbase", d)}"
+DEPENDS_remove := '${@bb.utils.contains("DISTRO_FEATURES", "qt5", "", "qtbase", d)}'
 
 SRCREV = "707d10f11526afee1e1a35ec7fdaa8b05f7e1656"
 PV = "2.4.11+git${SRCPV}"
