@@ -84,6 +84,7 @@ RDEPENDS_packagegroup-qt5 =  '${@ " \
 RDEPENDS_packagegroup-surroundview = '${@ " \
     utest-adas \
     spacenavd \
+    sv-videos \
 " if 'surroundview' in '${DISTRO_FEATURES}' else ""}'
 
 RDEPENDS_packagegroup-opencv-sdk = '${@ " \
