@@ -20,11 +20,9 @@ RDEPENDS_${PN} = "\
     spacenavd \
 "
 
-SRC_URI = "git://github.com/CogentEmbedded/utest-adas.git;protocol=http;nobranch=1"
+SRC_URI = "git://github.com/CogentEmbedded/utest-adas.git;protocol=http;branch=${PV}"
 S = "${WORKDIR}/git"
-
-SRCREV = "0c12fe65434455d18b8a94382766ddc81ab81bba"
-PV = "1.0+${SRCREV}"
+SRCREV = "1.0"
 
 FILES_${PN} += "${datadir}/${BPN}"
 
