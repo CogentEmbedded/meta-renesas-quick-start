@@ -1,0 +1,9 @@
+diff --git a/Makefile b/Makefile
+index af9d16a..2d223c4 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,2 +1,4 @@
+ simple-touch:	simple-touch.c os-compatibility.c
+ 		${CC} ${CFLAGS} simple-touch.c os-compatibility.c -g -o ${@} -lm -lEGL -lGLESv2 -lwayland-egl -lwayland-client -lwayland-cursor -lrt -lpthread
++clean:
++	rm simple-touch || exit 0
