@@ -1,7 +1,7 @@
 DESCRIPTION = "library for nonlinear optimization, wrapping many algorithms for global and local, constrained or unconstrained, optimization"
 HOMEPAGE = "http://ab-initio.mit.edu/wiki/index.php/NLopt"
 SECTION = "System/Libraries"
-LICENSE = "LGPL-2.1|MIT"
+LICENSE = "LGPL-2.1 | MIT"
 
 LIC_FILES_CHKSUM ??= "file://COPYING;md5=7036bf07f719818948a837064b1af213"
 

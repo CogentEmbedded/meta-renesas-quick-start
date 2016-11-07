@@ -1,6 +1,18 @@
+diff -pruN libspnav-0.2.3.orig/configure libspnav-0.2.3/configure
+--- libspnav-0.2.3.orig/configure	2011-11-25 18:36:43.000000000 -0800
++++ libspnav-0.2.3/configure	2016-03-18 04:46:31.327083251 -0700
+@@ -8,7 +8,7 @@ DBG=yes
+ X11=yes
+ 
+ srcdir="`dirname "$0"`"
+-libdir=lib
++libdir=lib64
+ 
+ #if [ "`uname -m`" = 'x86_64' ]; then
+ #	libdir=lib64
 diff -pruN libspnav-0.2.3.orig/Makefile.in libspnav-0.2.3/Makefile.in
---- libspnav-0.2.3.orig/Makefile.in	2015-07-05 13:02:38.962783406 -0700
-+++ libspnav-0.2.3/Makefile.in	2015-07-05 13:13:54.122807384 -0700
+--- libspnav-0.2.3.orig/Makefile.in	2014-08-17 18:38:31.000000000 -0700
++++ libspnav-0.2.3/Makefile.in	2016-03-18 04:46:31.339083251 -0700
 @@ -8,10 +8,11 @@ lib_a = lib$(name).a
  incpaths = -I. -I/usr/local/include -I/usr/X11R6/include
  libpaths = -L/usr/local/lib -L/usr/X11R6/lib

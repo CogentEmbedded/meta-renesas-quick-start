@@ -1,0 +1,87 @@
+From c79af49c33f8ce705f63dee9dbc48cd716064e98 Mon Sep 17 00:00:00 2001
+From: Andrey Vostrikov <andrey.vostrikov@cogentembedded.com>
+Date: Fri, 22 Apr 2016 13:38:21 +0300
+Subject: [PATCH] Fix configuration for libdir
+
+Signed-off-by: Andrey Vostrikov <andrey.vostrikov@cogentembedded.com>
+---
+ Makefile.in | 18 +++++++++---------
+ configure   | 13 +++++++------
+ 2 files changed, 16 insertions(+), 15 deletions(-)
+
+diff --git a/Makefile.in b/Makefile.in
+index eb996a9..6808e44 100644
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -50,22 +50,22 @@ distclean:
+ 
+ .PHONY: install
+ install: $(lib_a) $(lib_so)
+-	mkdir -p $(DESTDIR)$(PREFIX)/$(libdir) $(DESTDIR)$(PREFIX)/include
+-	cp $(lib_a) $(DESTDIR)$(PREFIX)/$(libdir)/$(lib_a)
+-	cp $(lib_so) $(DESTDIR)$(PREFIX)/$(libdir)/$(lib_so)
++	mkdir -p $(DESTDIR)/$(libdir) $(DESTDIR)$(PREFIX)/include
++	cp $(lib_a) $(DESTDIR)/$(libdir)/$(lib_a)
++	cp $(lib_so) $(DESTDIR)/$(libdir)/$(lib_so)
+ 	[ -n "$(soname)" ] && \
+-		rm -f $(DESTDIR)$(PREFIX)/$(libdir)/$(soname) $(DESTDIR)$(PREFIX)/$(libdir)/$(devlink) && \
+-		ln -s $(lib_so) $(DESTDIR)$(PREFIX)/$(libdir)/$(soname) && \
+-		ln -s $(soname) $(DESTDIR)$(PREFIX)/$(libdir)/$(devlink) || \
++		rm -f $(DESTDIR)/$(libdir)/$(soname) $(DESTDIR)/$(libdir)/$(devlink) && \
++		ln -s $(lib_so) $(DESTDIR)/$(libdir)/$(soname) && \
++		ln -s $(soname) $(DESTDIR)/$(libdir)/$(devlink) || \
+ 		true
+ 	for h in $(hdr); do cp -p $(srcdir)/$$h $(DESTDIR)$(PREFIX)/include/; done
+ 
+ .PHONY: uninstall
+ uninstall:
+-	rm -f $(DESTDIR)$(PREFIX)/$(libdir)/$(lib_a)
+-	rm -f $(DESTDIR)$(PREFIX)/$(libdir)/$(lib_so)
++	rm -f $(DESTDIR)/$(libdir)/$(lib_a)
++	rm -f $(DESTDIR)/$(libdir)/$(lib_so)
+ 	[ -n "$(soname)" ] && \
+-		rm -f $(DESTDIR)$(PREFIX)/$(libdir)/$(soname) $(DESTDIR)$(PREFIX)/$(libdir)/$(devlink) || \
++		rm -f $(DESTDIR)/$(libdir)/$(soname) $(DESTDIR)/$(libdir)/$(devlink) || \
+ 		true
+ 	for i in $(hdr); do rm -f $(DESTDIR)$(PREFIX)/include/$$i; done
+ 
+diff --git a/configure b/configure
+index 6f85fec..7f6289d 100755
+--- a/configure
++++ b/configure
+@@ -8,18 +8,18 @@ DBG=yes
+ X11=yes
+ 
+ srcdir="`dirname "$0"`"
+-libdir=lib64
+-
+-#if [ "`uname -m`" = 'x86_64' ]; then
+-#	libdir=lib64
+-#fi
+-
++libdir=/usr/lib
++echo "initial $prefix"
+ for arg; do
+ 	case "$arg" in
+ 	--prefix=*)
+ 		value=`echo $arg | sed 's/--prefix=//'`
+ 		PREFIX=${value:-$prefix}
+ 		;;
++	--libdir=*)
++		value=`echo $arg | sed 's/--libdir=//'`
++		libdir=${value:-$libdir}
++		;;
+ 	
+ 	--enable-opt)
+ 		OPT=yes;;
+@@ -53,6 +53,7 @@ for arg; do
+ done
+ 
+ echo "  prefix: $PREFIX"
++echo "  libdir: $libdir"
+ echo "  optimize for speed: $OPT"
+ echo "  include debugging symbols: $DBG"
+ echo "  x11 communication method: $X11"
+-- 
+2.1.4
+

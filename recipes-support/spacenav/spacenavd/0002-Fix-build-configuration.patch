@@ -1,0 +1,27 @@
+From 10138bf87a7d4c23ce3c067455fb299410b37a49 Mon Sep 17 00:00:00 2001
+From: Andrey Vostrikov <andrey.vostrikov@cogentembedded.com>
+Date: Fri, 22 Apr 2016 13:36:28 +0300
+Subject: [PATCH] Fix build configuration
+
+Signed-off-by: Andrey Vostrikov <andrey.vostrikov@cogentembedded.com>
+---
+ Makefile.in |  6 +++---
+ configure   | 16 ++++++++--------
+ 2 files changed, 11 insertions(+), 11 deletions(-)
+
+diff --git a/Makefile.in b/Makefile.in
+index 27d1a21..48dc517 100644
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -8,7 +8,7 @@ CC ?= gcc
+ INSTALL = install
+ CFLAGS ?= -pedantic -Wall -fno-strict-aliasing  -I/usr/local/include $(add_cflags)
+ CFLAGS += $(dbg) $(opt) -I$(srcdir)/src
+-LDFLAGS ?= -L/usr/local/lib $(xlib) $(add_ldflags)
++LDFLAGS ?= -L/usr/lib64 $(xlib) $(add_ldflags)
+ 
+ $(bin): $(obj)
+ 	$(CC) -o $@ $(obj) $(LDFLAGS)
+diff --git a/configure b/configure
+index 2795a3c..c016b33 100755
+

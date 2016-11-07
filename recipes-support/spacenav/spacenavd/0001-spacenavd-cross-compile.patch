@@ -1,0 +1,95 @@
+diff -pruN spacenavd-0.6.orig/configure spacenavd-0.6/configure
+--- spacenavd-0.6.orig/configure	2012-05-16 20:56:12.000000000 -0700
++++ spacenavd-0.6/configure	2016-03-18 04:35:24.259067397 -0700
+@@ -154,25 +154,25 @@ cat "$srcdir/Makefile.in" >>Makefile
+ 
+ # create config.h
+ echo 'creating config.h'
+-echo '#ifndef CONFIG_H_' >src/config.h
+-echo '#define CONFIG_H_' >>src/config.h
+-echo >>src/config.h
++echo '#ifndef CONFIG_H_' >$srcdir/src/config.h
++echo '#define CONFIG_H_' >>$srcdir/src/config.h
++echo >>$srcdir/src/config.h
+ if [ "$X11" = yes ]; then
+-	echo '#define USE_X11' >>src/config.h
+-	echo >>src/config.h
++	echo '#define USE_X11' >>$srcdir/src/config.h
++	echo >>$srcdir/src/config.h
+ fi
+ if [ "$HOTPLUG" = yes ]; then
+-	echo '#define USE_NETLINK' >>src/config.h
+-	echo >>src/config.h
++	echo '#define USE_NETLINK' >>$srcdir/src/config.h
++	echo >>$srcdir/src/config.h
+ fi
+-echo '#define VERSION "'$VER'"' >>src/config.h
+-echo >>src/config.h
++echo '#define VERSION "'$VER'"' >>$srcdir/src/config.h
++echo >>$srcdir/src/config.h
+ 
+ # check for alloca.h
+-check_header alloca.h >>src/config.h
++check_header alloca.h >>$srcdir/src/config.h
+ 
+-echo >>src/config.h
+-echo '#endif	/* CONFIG_H_ */' >>src/config.h
++echo >>$srcdir/src/config.h
++echo '#endif	/* CONFIG_H_ */' >>$srcdir/src/config.h
+ 
+ echo ''
+ echo 'Done. You can now type make (or gmake) to compile spacenavd.'
+diff -pruN spacenavd-0.6.orig/Makefile.in spacenavd-0.6/Makefile.in
+--- spacenavd-0.6.orig/Makefile.in	2013-06-25 17:12:28.000000000 -0700
++++ spacenavd-0.6/Makefile.in	2016-03-18 04:44:10.451079903 -0700
+@@ -1,14 +1,14 @@
+-src = $(wildcard src/*.c) $(wildcard src/serial/*.c) $(wildcard src/magellan/*.c)
+-hdr = $(wildcard src/*.h) $(wildcard src/serial/*.h) $(wildcard src/magellan/*.h)
++src = $(wildcard $(srcdir)/src/*.c) $(wildcard $(srcdir)/src/serial/*.c) $(wildcard $(srcdir)/src/magellan/*.c)
++hdr = $(wildcard $(srcdir)/src/*.h) $(wildcard $(srcdir)/src/serial/*.h) $(wildcard $(srcdir)/src/magellan/*.h)
+ obj = $(src:.c=.o)
+ dep = $(obj:.o=.d)
+ bin = spacenavd
+-ctl = spnavd_ctl
+ 
+-CC = gcc
++CC ?= gcc
+ INSTALL = install
+-CFLAGS = -pedantic -Wall $(dbg) $(opt) -fno-strict-aliasing -I$(srcdir)/src -I/usr/local/include $(add_cflags)
+-LDFLAGS = -L/usr/local/lib $(xlib) $(add_ldflags)
++CFLAGS ?= -pedantic -Wall -fno-strict-aliasing  -I/usr/local/include $(add_cflags)
++CFLAGS += $(dbg) $(opt) -I$(srcdir)/src
++LDFLAGS ?= -L/usr/local/lib $(xlib) $(add_ldflags)
+ 
+ $(bin): $(obj)
+ 	$(CC) -o $@ $(obj) $(LDFLAGS)
+@@ -36,7 +36,6 @@ cleandep:
+ install: $(bin)
+ 	$(INSTALL) -d $(DESTDIR)$(PREFIX)/bin
+ 	$(INSTALL) -m 755 $(bin) $(DESTDIR)$(PREFIX)/bin/$(bin)
+-	$(INSTALL) -m 755 $(srcdir)/$(ctl) $(DESTDIR)$(PREFIX)/bin/$(ctl)
+ 	cd $(srcdir) && ./setup_init --no-install
+ 
+ #	[ -d /etc/hal/fdi/policy ] && \
+@@ -45,7 +44,5 @@ install: $(bin)
+ .PHONY: uninstall
+ uninstall:
+ 	rm -f $(DESTDIR)$(PREFIX)/bin/$(bin)
+-	rm -f $(DESTDIR)$(PREFIX)/bin/$(ctl)
+-	rm -f $(DESTDIR)/etc/hal/fdi/policy/spacenav.fdi
+ 
+ #	cd $(srcdir) && ./setup_init remove
+diff -pruN spacenavd-0.6.orig/src/config.h spacenavd-0.6/src/config.h
+--- spacenavd-0.6.orig/src/config.h	1969-12-31 16:00:00.000000000 -0800
++++ spacenavd-0.6/src/config.h	2016-03-18 04:35:24.295067398 -0700
+@@ -0,0 +1,10 @@
++#ifndef CONFIG_H_
++#define CONFIG_H_
++
++#define USE_NETLINK
++
++#define VERSION ""
++
++#define HAVE_ALLOCA_H
++
++#endif	/* CONFIG_H_ */
