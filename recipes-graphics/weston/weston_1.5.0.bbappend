@@ -16,6 +16,7 @@ SRC_URI_append = " \
     file://0017-Fixed-memory-corruption-when-focus-listener-is-moved.patch \
     file://0018-Added-public-API-to-set-output-for-window.patch \
     file://0019-Fixed-display_poll-implementation.patch \
+    file://0020-evdev-notify-touch-frame-on-EV_SYN-event.patch \
 "
 
 
