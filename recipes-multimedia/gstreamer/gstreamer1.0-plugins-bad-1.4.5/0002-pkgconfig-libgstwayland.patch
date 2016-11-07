@@ -1,0 +1,34 @@
+From 96044f1d3773ba2783e3956729cd9c85b04733da Mon Sep 17 00:00:00 2001
+From: Grigory Kletsko <grigory.kletsko@cogentembedded.com>
+Date: Thu, 12 May 2016 21:24:38 +0300
+Subject: [PATCH] fix
+
+---
+ pkgconfig/Makefile.am | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/pkgconfig/Makefile.am b/pkgconfig/Makefile.am
+index 3e53a6e..7ed611e 100644
+--- a/pkgconfig/Makefile.am
++++ b/pkgconfig/Makefile.am
+@@ -4,13 +4,15 @@ pcverfiles =  \
+ 	gstreamer-plugins-bad-@GST_API_VERSION@.pc \
+ 	gstreamer-codecparsers-@GST_API_VERSION@.pc \
+ 	gstreamer-insertbin-@GST_API_VERSION@.pc \
+-	gstreamer-mpegts-@GST_API_VERSION@.pc
++	gstreamer-mpegts-@GST_API_VERSION@.pc \
++    gstreamer-wayland-@GST_API_VERSION@.pc
+ 
+ pcverfiles_uninstalled = \
+ 	gstreamer-plugins-bad-@GST_API_VERSION@-uninstalled.pc \
+ 	gstreamer-codecparsers-@GST_API_VERSION@-uninstalled.pc \
+ 	gstreamer-insertbin-@GST_API_VERSION@-uninstalled.pc \
+-	gstreamer-mpegts-@GST_API_VERSION@-uninstalled.pc
++	gstreamer-mpegts-@GST_API_VERSION@-uninstalled.pc \
++	gstreamer-wayland-@GST_API_VERSION@-uninstalled.pc
+ 
+ if HAVE_GST_GL
+ pcverfiles += gstreamer-gl-@GST_API_VERSION@.pc
+-- 
+2.5.0
+
