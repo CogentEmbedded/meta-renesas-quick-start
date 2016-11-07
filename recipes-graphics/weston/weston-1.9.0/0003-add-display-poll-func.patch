@@ -1,0 +1,77 @@
+diff --git a/clients/toytoolkit.h b/clients/toytoolkit.h
+index 402836d..767a84e 100644
+--- a/clients/toytoolkit.h
++++ b/clients/toytoolkit.h
+@@ -173,6 +173,9 @@ display_unwatch_fd(struct display *display, int fd);
+ void
+ display_run(struct display *d);
+ 
++int
++display_poll(struct display *display, int timeout);
++
+ void
+ display_exit(struct display *d);
+ 
+diff --git a/clients/window.c b/clients/window.c
+index 2d38796..8540553 100644
+--- a/clients/window.c
++++ b/clients/window.c
+@@ -5905,6 +5905,58 @@ display_run(struct display *display)
+ 	}
+ }
+ 
++int
++display_poll(struct display *display, int timeout)
++{
++	struct task *task;
++	struct epoll_event ep[16];
++	int i, count, ret;
++
++	display->running = 1;
++	while (!wl_list_empty(&display->deferred_list)) {
++		task = container_of(display->deferred_list.prev,
++		                    struct task, link);
++		wl_list_remove(&task->link);
++		task->run(task, 0);
++	}
++
++    /* ...prepare for a reading */
++    while (wl_display_prepare_read(display->display) != 0)
++    {
++        /* ...dispatch all pending events and repeat attempt */
++        wl_display_dispatch_pending(display->display);
++    }
++
++    /* ...flush all outstanding commands to a display */
++    if (wl_display_flush(display->display) < 0) {
++        return -1;
++    }
++
++    if (!display->running)
++	    return -1;
++
++    count = epoll_wait(display->epoll_fd, ep, ARRAY_LENGTH(ep), timeout);
++    if (!count) {
++        wl_display_cancel_read(display->display);
++        return 0;
++    }
++
++    if (count > 0) {
++        /* ...read display events (if any) before we do any drawing */
++        if (wl_display_read_events(display->display) < 0) {
++            return -1;
++        }
++
++        /* ...process pending display events (if any) */
++        if (wl_display_dispatch_pending(display->display) < 0) {
++            return -1;
++        }
++    } else if (count < 0) {
++        wl_display_cancel_read(display->display);
++        return count;
++    }
++}
++
+ void
+ display_exit(struct display *display)
+ {

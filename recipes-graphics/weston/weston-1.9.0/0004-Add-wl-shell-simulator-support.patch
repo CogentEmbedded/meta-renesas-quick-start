@@ -1,0 +1,58 @@
+From b30fa58e0fc99a0193e17c999b47e972bc6966bc Mon Sep 17 00:00:00 2001
+From: Grigory Kletsko <grigory.kletsko@cogentembedded.com>
+Date: Thu, 29 Sep 2016 17:01:32 +0300
+Subject: [PATCH] Add wl-shell-simulator support
+
+---
+ ivi-shell/ivi-layout-export.h | 20 ++++++++++++++++++++
+ ivi-shell/ivi-layout.c        |  3 +++
+ 2 files changed, 23 insertions(+)
+
+diff --git a/ivi-shell/ivi-layout-export.h b/ivi-shell/ivi-layout-export.h
+index 8a92009..50fed35 100644
+--- a/ivi-shell/ivi-layout-export.h
++++ b/ivi-shell/ivi-layout-export.h
+@@ -185,6 +185,26 @@ struct ivi_controller_interface {
+ 	int32_t (*commit_changes)(void);
+ 
+ 	/**
++	 * \brief Creates an ivi_layout_surface.
++	 *
++	 * \return IVI_SUCCEEDED if the method call was successful
++	 * \return IVI_FAILED if the method call was failed
++	 */
++	struct ivi_layout_surface* (*surface_create)(
++				struct weston_surface *wl_surface,
++				uint32_t id_surface);
++
++	/**
++	 * \brief Configure an ivi_layout_surface
++	 *
++	 * \return IVI_SUCCEEDED if the method call was successful
++	 * \return IVI_FAILED if the method call was failed
++	 */
++	void (*surface_configure)(struct ivi_layout_surface *ivisurf,
++				  int32_t width, int32_t height);
++
++
++	/**
+ 	 * surface controller interface
+ 	 */
+ 
+diff --git a/ivi-shell/ivi-layout.c b/ivi-shell/ivi-layout.c
+index 24bd8dd..037d0a9 100644
+--- a/ivi-shell/ivi-layout.c
++++ b/ivi-shell/ivi-layout.c
+@@ -2870,6 +2870,9 @@ static struct ivi_controller_interface ivi_controller_interface = {
+ 	 * commit all changes
+ 	 */
+ 	.commit_changes = ivi_layout_commit_changes,
++	.surface_create = ivi_layout_surface_create,
++	.surface_configure = ivi_layout_surface_configure,
++
+ 
+ 	/**
+ 	 * surface controller interfaces
+-- 
+2.7.4
+
