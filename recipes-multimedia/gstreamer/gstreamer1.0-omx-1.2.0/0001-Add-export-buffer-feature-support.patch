@@ -1,0 +1,732 @@
+From db29395ad8371af201ede1d88911852cb2308475 Mon Sep 17 00:00:00 2001
+From: Grigory Kletsko <grigory.kletsko@cogentembedded.com>
+Date: Mon, 10 Oct 2016 00:30:20 +0300
+Subject: [PATCH] Add export buffer feature support
+
+---
+ omx/gstomx.c           |   1 +
+ omx/gstomx.h           |   5 +
+ omx/gstomxbufferpool.c | 173 ++++++++++++++++++++++++++++++----
+ omx/gstomxbufferpool.h |   7 ++
+ omx/gstomxvideodec.c   |   2 +
+ omx/gstomxvideoenc.c   | 251 ++++++++++++++++++++++++++++---------------------
+ 6 files changed, 312 insertions(+), 127 deletions(-)
+
+diff --git a/omx/gstomx.c b/omx/gstomx.c
+index 5e4f3cf..3875a48 100644
+--- a/omx/gstomx.c
++++ b/omx/gstomx.c
+@@ -1631,6 +1631,7 @@ gst_omx_port_allocate_buffers_unlocked (GstOMXPort * port,
+     buf = g_slice_new0 (GstOMXBuffer);
+     buf->port = port;
+     buf->used = FALSE;
++    buf->exported = FALSE;
+     buf->settings_cookie = port->settings_cookie;
+     g_ptr_array_add (port->buffers, buf);
+ 
+diff --git a/omx/gstomx.h b/omx/gstomx.h
+index 57c5ff4..90f179f 100644
+--- a/omx/gstomx.h
++++ b/omx/gstomx.h
+@@ -296,6 +296,11 @@ struct _GstOMXBuffer {
+    * between {Empty,Fill}ThisBuffer and the callback
+    */
+   gboolean used;
++  /* TRUE if the buffer exported outside the component,
++   * i.e. someone acquired this buffer
++   */
++  gboolean exported;
++	
+ 
+   /* Cookie of the settings when this buffer was allocated */
+   gint settings_cookie;
+diff --git a/omx/gstomxbufferpool.c b/omx/gstomxbufferpool.c
+index f19b64b..ed479f2 100644
+--- a/omx/gstomxbufferpool.c
++++ b/omx/gstomxbufferpool.c
+@@ -292,6 +292,7 @@ gst_omx_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * config)
+   GstOMXBufferPool *pool = GST_OMX_BUFFER_POOL (bpool);
+   GstCaps *caps;
+ 
++  GST_ERROR_OBJECT (pool, "set config %p", config);
+   GST_OBJECT_LOCK (pool);
+ 
+   if (!gst_buffer_pool_config_get_params (config, &caps, NULL, NULL, NULL))
+@@ -315,6 +316,9 @@ gst_omx_buffer_pool_set_config (GstBufferPool * bpool, GstStructure * config)
+         GST_BUFFER_POOL_OPTION_VIDEO_META);
+ 
+     pool->video_info = info;
++
++    GST_ERROR_OBJECT (pool, "set config %p pool->add_videometa %d", config,
++        pool->add_videometa);
+   }
+ 
+   if (pool->caps)
+@@ -348,6 +352,86 @@ wrong_video_caps:
+   }
+ }
+ 
++GstOMXBuffer *
++gst_omx_buffer_get_omxbuffer (GstBuffer * buffer)
++{
++  GstOMXBuffer *omx_buf;
++
++  omx_buf =
++      gst_mini_object_get_qdata (GST_MINI_OBJECT_CAST (buffer),
++      gst_omx_buffer_data_quark);
++
++  return omx_buf;
++}
++
++#ifdef HAVE_MMNGRBUF
++static GstBuffer *
++gst_omx_buffer_pool_request_videosink_buffer_creation (GstOMXBufferPool * pool,
++    gint dmabuf_fd[GST_VIDEO_MAX_PLANES],
++    gpointer plane_buf[GST_VIDEO_MAX_PLANES], gint stride[GST_VIDEO_MAX_PLANES])
++{
++  GstQuery *query;
++  GValue val = { 0, };
++  GstStructure *structure;
++  const GValue *value;
++  GstBuffer *buffer;
++  GArray *dmabuf_array;
++  GArray *stride_array;
++  GArray *planebuf_array;
++  gint n_planes;
++  gint i;
++
++  g_value_init (&val, G_TYPE_POINTER);
++  g_value_set_pointer (&val, (gpointer) pool->allocator);
++
++  dmabuf_array = g_array_new (FALSE, FALSE, sizeof (gint));
++  stride_array = g_array_new (FALSE, FALSE, sizeof (gint));
++  planebuf_array = g_array_new (FALSE, FALSE, sizeof (gpointer));
++
++  n_planes = GST_VIDEO_INFO_N_PLANES (&pool->video_info);
++  for (i = 0; i < n_planes; i++) {
++    g_array_append_val (dmabuf_array, dmabuf_fd[i]);
++    g_array_append_val (stride_array, stride[i]);
++    g_array_append_val (planebuf_array, plane_buf[i]);
++  }
++
++  structure = gst_structure_new ("videosink_buffer_creation_request",
++      "width", G_TYPE_INT, pool->port->port_def.format.video.nFrameWidth,
++      "height", G_TYPE_INT, pool->port->port_def.format.video.nFrameHeight,
++      "stride", G_TYPE_ARRAY, stride_array,
++      "dmabuf", G_TYPE_ARRAY, dmabuf_array,
++      "planebuf", G_TYPE_ARRAY, planebuf_array,
++      "allocator", G_TYPE_POINTER, &val,
++      "format", G_TYPE_STRING,
++      gst_video_format_to_string (pool->video_info.finfo->format),
++      "n_planes", G_TYPE_INT, n_planes, NULL);
++
++  query = gst_query_new_custom (GST_QUERY_CUSTOM, structure);
++
++  GST_DEBUG_OBJECT (pool, "send a videosink_buffer_creation_request query");
++
++  if (!gst_pad_peer_query (GST_VIDEO_DECODER_SRC_PAD (pool->element), query)) {
++    GST_ERROR_OBJECT (pool, "videosink_buffer_creation_request query failed");
++    return NULL;
++  }
++
++  value = gst_structure_get_value (structure, "buffer");
++  buffer = gst_value_get_buffer (value);
++  if (buffer == NULL) {
++    GST_ERROR_OBJECT (pool,
++        "could not get a buffer from videosink_buffer_creation query");
++    return NULL;
++  }
++
++  gst_query_unref (query);
++
++  g_array_free (dmabuf_array, TRUE);
++  g_array_free (stride_array, TRUE);
++
++  return buffer;
++}
++#endif
++
+ #if defined (HAVE_MMNGRBUF) && defined (HAVE_VIDEODEC_EXT)
+ static gboolean
+ gst_omx_buffer_pool_export_dmabuf (GstOMXBufferPool * pool,
+@@ -382,9 +466,12 @@ gst_omx_buffer_pool_create_buffer_contain_dmabuf (GstOMXBufferPool * self,
+   gint plane_size_ext[GST_VIDEO_MAX_PLANES];
+   gint dmabuf_id[GST_VIDEO_MAX_PLANES];
+   gint page_offset[GST_VIDEO_MAX_PLANES];
++  guint plane_buf[GST_VIDEO_MAX_PLANES];        /* kls */
+   GstBuffer *new_buf;
+   gint i;
+   gint page_size;
++  guint phys_addr = 0;
++  guint phys_size = 0;
+ 
+   new_buf = gst_buffer_new ();
+   page_size = getpagesize ();
+@@ -392,19 +479,40 @@ gst_omx_buffer_pool_create_buffer_contain_dmabuf (GstOMXBufferPool * self,
+   GST_DEBUG_OBJECT (self, "Create dmabuf mem pBuffer=%p",
+       omx_buf->omx_buf->pBuffer);
+ 
+-  for (i = 0; i < GST_VIDEO_INFO_N_PLANES (&self->video_info); i++) {
+-    guint phys_addr;
+-    GstMemory *mem;
+-
++  if (GST_IS_OMX_VIDEO_DEC (self->element)) {
+     OMXR_MC_VIDEO_DECODERESULTTYPE *decode_res =
+         (OMXR_MC_VIDEO_DECODERESULTTYPE *) omx_buf->omx_buf->pOutputPortPrivate;
++    phys_addr = decode_res->pvPhysImageAddressY;
++    phys_size = (guint) omx_buf->omx_buf->nAllocLen;
++  } else if (GST_IS_OMX_VIDEO_ENC (self->element)) {
++    /* private data is a physical address of HW buffer */
++    phys_addr = (guint) omx_buf->omx_buf->pInputPortPrivate;
++    phys_size = (guint) omx_buf->omx_buf->nAllocLen;
++  }
++
++  if ((phys_addr == 0) || (phys_size == 0)) {
++    GST_ERROR_OBJECT (self, "Invalid phys range for OMX buffer");
++    return NULL;
++  }
++
++  for (i = 0; i < GST_VIDEO_INFO_N_PLANES (&self->video_info); i++) {
++    GstMemory *mem;
++    guint plane_addr = 0;
+ 
+-    phys_addr = (guintptr) decode_res->pvPhysImageAddressY + offset[i];
++    plane_addr = phys_addr + offset[i];
+     /* Calculate offset between physical address and page boundary */
+     page_offset[i] = phys_addr & (page_size - 1);
+ 
+-    plane_size[i] = stride[i] *
+-        GST_VIDEO_INFO_COMP_HEIGHT (&self->video_info, i);
++    /* Export a dmabuf file descriptor from the head of Y plane to
++     * the end of the buffer so that mapping the whole plane as
++     * contiguous memory is available. */
++    if (i == 0)
++      plane_size[i] = phys_size;
++    else
++      plane_size[i] = stride[i] *
++          GST_VIDEO_INFO_COMP_HEIGHT (&self->video_info, i);
++
++    plane_buf[i] = omx_buf->omx_buf->pBuffer + offset[i];
+ 
+     /* When downstream plugins do mapping from dmabuf fd it requires
+      * mapping from boundary page and size align for page size so
+@@ -412,12 +520,15 @@ gst_omx_buffer_pool_create_buffer_contain_dmabuf (GstOMXBufferPool * self,
+     plane_size_ext[i] = GST_ROUND_UP_N (plane_size[i] + page_offset[i],
+         page_size);
+ 
+-    if (!gst_omx_buffer_pool_export_dmabuf (self, phys_addr,
++    if (!gst_omx_buffer_pool_export_dmabuf (self, plane_addr,
+             plane_size_ext[i], &dmabuf_id[i], &dmabuf_fd[i])) {
+       GST_ERROR_OBJECT (self, "dmabuf exporting failed");
+       return NULL;
+     }
+ 
++    GST_ERROR_OBJECT (self, "dmabuf_id[%d] = %d ", i, dmabuf_id[i]);
++    GST_ERROR_OBJECT (self, "dmabuf_fd[%d] = %d ", i, dmabuf_fd[i]);
++
+     g_array_append_val (self->id_array, dmabuf_id[i]);
+     /* Set offset's information */
+     mem = gst_dmabuf_allocator_alloc (self->allocator, dmabuf_fd[i],
+@@ -428,14 +539,23 @@ gst_omx_buffer_pool_create_buffer_contain_dmabuf (GstOMXBufferPool * self,
+ 
+   }
+ 
+-  g_ptr_array_add (self->buffers, new_buf);
++
++  new_buf->pool = GST_BUFFER_POOL_CAST (self);  /* kls ? */
++
++
+   gst_buffer_add_video_meta_full (new_buf, GST_VIDEO_FRAME_FLAG_NONE,
+       GST_VIDEO_INFO_FORMAT (&self->video_info),
+       GST_VIDEO_INFO_WIDTH (&self->video_info),
+       GST_VIDEO_INFO_HEIGHT (&self->video_info),
+       GST_VIDEO_INFO_N_PLANES (&self->video_info), offset, stride);
+ 
++
++  GST_ERROR_OBJECT (self, "got buffer %p from pool %p", new_buf, new_buf->pool);
++  g_ptr_array_add (self->buffers, new_buf);
+   return new_buf;
++
++err:
++  return NULL;
+ }
+ #endif
+ 
+@@ -485,6 +605,7 @@ gst_omx_buffer_pool_alloc_buffer (GstBufferPool * bpool,
+ 
+     pool->need_copy = FALSE;
+   } else {
++    gboolean dmabuf = FALSE;
+     GstMemory *mem;
+     const guint nstride = pool->port->port_def.format.video.nStride;
+     const guint nslice = pool->port->port_def.format.video.nSliceHeight;
+@@ -519,8 +640,16 @@ gst_omx_buffer_pool_alloc_buffer (GstBufferPool * bpool,
+ 
+     if (GST_IS_OMX_VIDEO_DEC (pool->element) &&
+         GST_OMX_VIDEO_DEC (pool->element)->use_dmabuf == TRUE &&
+-        (omx_buf->omx_buf->pOutputPortPrivate)) {
+-#if defined (HAVE_MMNGRBUF) && defined (HAVE_VIDEODEC_EXT)
++        (omx_buf->omx_buf->pOutputPortPrivate))
++      dmabuf = TRUE;
++
++    if (GST_IS_OMX_VIDEO_ENC (pool->element) &&
++        GST_OMX_VIDEO_ENC (pool->element)->no_copy == TRUE &&
++        (omx_buf->omx_buf->pInputPortPrivate))
++      dmabuf = TRUE;
++
++    if (dmabuf) {
++#if defined (HAVE_MMNGRBUF)
+       if (pool->allocator)
+         gst_object_unref (pool->allocator);
+       pool->allocator = gst_dmabuf_allocator_new ();
+@@ -654,15 +783,16 @@ gst_omx_buffer_pool_acquire_buffer (GstBufferPool * bpool,
+         buf = g_ptr_array_index (pool->buffers, pool->enc_buffer_index);
+         g_return_val_if_fail (buf != NULL, GST_FLOW_ERROR);
+ 
+-        omx_buf =
+-            gst_mini_object_get_qdata (GST_MINI_OBJECT_CAST (buf),
+-            gst_omx_buffer_data_quark);
++        omx_buf = gst_omx_buffer_get_omxbuffer (buf);
++        /* omx_buf = */
++        /*     gst_mini_object_get_qdata (GST_MINI_OBJECT_CAST (buf), */
++        /*     gst_omx_buffer_data_quark); */
+         pool->enc_buffer_index++;
+         if (pool->enc_buffer_index == pool->port->port_def.nBufferCountActual)
+           pool->enc_buffer_index = 0;
+ 
+         count += 1;
+-      } while (omx_buf->used == TRUE &&
++      } while (omx_buf->exported == TRUE &&
+           count < pool->port->port_def.nBufferCountActual * 3);
+ 
+       if (count == pool->port->port_def.nBufferCountActual * 3) {
+@@ -670,6 +800,7 @@ gst_omx_buffer_pool_acquire_buffer (GstBufferPool * bpool,
+         GST_ERROR_OBJECT (pool,
+             "Can not acquire buffer after 3 times searching");
+       } else {
++        omx_buf->exported = TRUE;
+         *buffer = buf;
+         ret = GST_FLOW_OK;
+       }
+@@ -695,9 +826,15 @@ gst_omx_buffer_pool_release_buffer (GstBufferPool * bpool, GstBuffer * buffer)
+   g_assert (pool->component && pool->port);
+ 
+   if (!pool->allocating && !pool->deactivated) {
+-    omx_buf =
+-        gst_mini_object_get_qdata (GST_MINI_OBJECT_CAST (buffer),
+-        gst_omx_buffer_data_quark);
++    omx_buf = gst_omx_buffer_get_omxbuffer (buffer);
++
++    /* omx_buf = */
++    /* gst_mini_object_get_qdata (GST_MINI_OBJECT_CAST (buffer), */
++    /* gst_omx_buffer_data_quark); */
++
++    if (GST_IS_OMX_VIDEO_ENC (pool->element))
++      omx_buf->exported = FALSE;
++
+     if (pool->port->port_def.eDir == OMX_DirOutput && !omx_buf->used) {
+       /* Release back to the port, can be filled again */
+       err = gst_omx_port_release_buffer (pool->port, omx_buf);
+diff --git a/omx/gstomxbufferpool.h b/omx/gstomxbufferpool.h
+index 8dbe512..13593de 100644
+--- a/omx/gstomxbufferpool.h
++++ b/omx/gstomxbufferpool.h
+@@ -86,6 +86,11 @@ struct _GstOMXBufferPool
+   /* Array use to contain dma_id. It is used in export_end dmabuf area */
+   GArray *id_array;
+ #endif
++	
++  /* TRUE if the downstream buffer pool can handle
++     "videosink_buffer_creation_request" query */
++  gboolean vsink_buf_req_supported;
++
+ };
+ 
+ struct _GstOMXBufferPoolClass
+@@ -97,6 +102,8 @@ GType gst_omx_buffer_pool_get_type (void);
+ 
+ GstBufferPool *gst_omx_buffer_pool_new (GstElement * element, GstOMXComponent * component, GstOMXPort * port);
+ 
++GstOMXBuffer *gst_omx_buffer_get_omxbuffer (GstBuffer * buffer);
++
+ G_END_DECLS
+ 
+ #endif /* __GST_OMX_BUFFER_POOL_H__ */
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 64780e4..033f550 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -2853,6 +2853,8 @@ gst_omx_video_dec_decide_allocation (GstVideoDecoder * bdec, GstQuery * query)
+       g_assert (pool != NULL);
+       gst_object_unref (pool);
+       update_pool = TRUE;
++      GST_ERROR_OBJECT (self, "vsink_buf_req_supported %d",
++          GST_OMX_BUFFER_POOL (self->out_port_pool)->vsink_buf_req_supported);
+     }
+     /* Set pool parameters to our own configuration */
+     config = gst_buffer_pool_get_config (self->out_port_pool);
+diff --git a/omx/gstomxvideoenc.c b/omx/gstomxvideoenc.c
+index e6ec859..ce9b429 100644
+--- a/omx/gstomxvideoenc.c
++++ b/omx/gstomxvideoenc.c
+@@ -92,6 +92,7 @@ gst_omx_video_enc_get_scantype (void)
+   return qtype;
+ }
+ 
++
+ /* Used in dmabuf mode */
+ struct _GstOMXVideoEncPrivate
+ {
+@@ -256,7 +257,8 @@ gst_omx_video_enc_class_init (GstOMXVideoEncClass * klass)
+   klass->cdata.type = GST_OMX_COMPONENT_TYPE_FILTER;
+   klass->cdata.default_sink_template_caps = "video/x-raw, "
+       "width = " GST_VIDEO_SIZE_RANGE ", "
+-      "height = " GST_VIDEO_SIZE_RANGE ", " "framerate = " GST_VIDEO_FPS_RANGE;
++      "height = " GST_VIDEO_SIZE_RANGE ", " "framerate = " GST_VIDEO_FPS_RANGE
++      "," "format=(string) {I420, NV12, NV16}";
+ 
+   klass->handle_output_frame =
+       GST_DEBUG_FUNCPTR (gst_omx_video_enc_handle_output_frame);
+@@ -271,7 +273,7 @@ gst_omx_video_enc_init (GstOMXVideoEnc * self)
+   self->quant_p_frames = GST_OMX_VIDEO_ENC_QUANT_P_FRAMES_DEFAULT;
+   self->quant_b_frames = GST_OMX_VIDEO_ENC_QUANT_B_FRAMES_DEFAULT;
+   self->scan_type = GST_OMX_VIDEO_ENC_SCAN_TYPE_DEFAULT;
+-  self->no_copy = FALSE;
++  self->no_copy = TRUE;
+   self->use_dmabuf = FALSE;
+   self->priv =
+       G_TYPE_INSTANCE_GET_PRIVATE (self, GST_TYPE_OMX_VIDEO_ENC,
+@@ -1074,6 +1076,50 @@ gst_omx_video_enc_stop (GstVideoEncoder * encoder)
+ }
+ 
+ static gboolean
++gst_omx_video_enc_disable (GstVideoEncoder * encoder)
++{
++  GstOMXVideoEnc *self;
++
++  self = GST_OMX_VIDEO_ENC (encoder);
++
++  GST_DEBUG_OBJECT (self, "Need to disable and drain encoder");
++  gst_omx_video_enc_drain (self, FALSE);
++  gst_omx_port_set_flushing (self->enc_out_port, 5 * GST_SECOND, TRUE);
++
++  /* Wait until the srcpad loop is finished,
++   * unlock GST_VIDEO_ENCODER_STREAM_LOCK to prevent deadlocks
++   * caused by using this lock from inside the loop function */
++  GST_VIDEO_ENCODER_STREAM_UNLOCK (self);
++  gst_pad_stop_task (GST_VIDEO_ENCODER_SRC_PAD (encoder));
++  GST_VIDEO_ENCODER_STREAM_LOCK (self);
++
++  if (gst_omx_port_set_enabled (self->enc_in_port, FALSE) != OMX_ErrorNone)
++    return FALSE;
++  if (gst_omx_port_set_enabled (self->enc_out_port, FALSE) != OMX_ErrorNone)
++    return FALSE;
++  if (gst_omx_port_wait_buffers_released (self->enc_in_port,
++          5 * GST_SECOND) != OMX_ErrorNone)
++    return FALSE;
++  if (gst_omx_port_wait_buffers_released (self->enc_out_port,
++          1 * GST_SECOND) != OMX_ErrorNone)
++    return FALSE;
++  if (gst_omx_port_deallocate_buffers (self->enc_in_port) != OMX_ErrorNone)
++    return FALSE;
++  if (gst_omx_port_deallocate_buffers (self->enc_out_port) != OMX_ErrorNone)
++    return FALSE;
++  if (gst_omx_port_wait_enabled (self->enc_in_port,
++          1 * GST_SECOND) != OMX_ErrorNone)
++    return FALSE;
++  if (gst_omx_port_wait_enabled (self->enc_out_port,
++          1 * GST_SECOND) != OMX_ErrorNone)
++    return FALSE;
++
++  GST_DEBUG_OBJECT (self, "Encoder drained and disabled");
++  return TRUE;
++}
++
++
++static gboolean
+ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
+     GstVideoCodecState * state)
+ {
+@@ -1103,41 +1149,9 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
+      * we have to disable the port and re-allocate all buffers. If no real
+      * format change happened we can just exit here.
+      */
+-    if (needs_disable) {
+-      GST_DEBUG_OBJECT (self, "Need to disable and drain encoder");
+-      gst_omx_video_enc_drain (self, FALSE);
+-      gst_omx_port_set_flushing (self->enc_out_port, 5 * GST_SECOND, TRUE);
+-
+-      /* Wait until the srcpad loop is finished,
+-       * unlock GST_VIDEO_ENCODER_STREAM_LOCK to prevent deadlocks
+-       * caused by using this lock from inside the loop function */
+-      GST_VIDEO_ENCODER_STREAM_UNLOCK (self);
+-      gst_pad_stop_task (GST_VIDEO_ENCODER_SRC_PAD (encoder));
+-      GST_VIDEO_ENCODER_STREAM_LOCK (self);
+-
+-      if (gst_omx_port_set_enabled (self->enc_in_port, FALSE) != OMX_ErrorNone)
+-        return FALSE;
+-      if (gst_omx_port_set_enabled (self->enc_out_port, FALSE) != OMX_ErrorNone)
+-        return FALSE;
+-      if (gst_omx_port_wait_buffers_released (self->enc_in_port,
+-              5 * GST_SECOND) != OMX_ErrorNone)
+-        return FALSE;
+-      if (gst_omx_port_wait_buffers_released (self->enc_out_port,
+-              1 * GST_SECOND) != OMX_ErrorNone)
+-        return FALSE;
+-      if (gst_omx_port_deallocate_buffers (self->enc_in_port) != OMX_ErrorNone)
++    if (needs_disable)
++      if (!gst_omx_video_enc_disable (encoder))
+         return FALSE;
+-      if (gst_omx_port_deallocate_buffers (self->enc_out_port) != OMX_ErrorNone)
+-        return FALSE;
+-      if (gst_omx_port_wait_enabled (self->enc_in_port,
+-              1 * GST_SECOND) != OMX_ErrorNone)
+-        return FALSE;
+-      if (gst_omx_port_wait_enabled (self->enc_out_port,
+-              1 * GST_SECOND) != OMX_ErrorNone)
+-        return FALSE;
+-
+-      GST_DEBUG_OBJECT (self, "Encoder drained and disabled");
+-    }
+ 
+     negotiation_map =
+         gst_omx_video_get_supported_colorformats (self->enc_in_port,
+@@ -1292,16 +1306,16 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
+     if (gst_omx_port_allocate_buffers (self->enc_in_port) != OMX_ErrorNone)
+       return FALSE;
+ 
+-    if ((klass->cdata.hacks & GST_OMX_HACK_NO_DISABLE_OUTPORT)) {
+-      if (gst_omx_port_set_enabled (self->enc_out_port, TRUE) != OMX_ErrorNone)
+-        return FALSE;
+-      if (gst_omx_port_allocate_buffers (self->enc_out_port) != OMX_ErrorNone)
+-        return FALSE;
++    /* if ((klass->cdata.hacks & GST_OMX_HACK_NO_DISABLE_OUTPORT)) { */
++    /*   if (gst_omx_port_set_enabled (self->enc_out_port, TRUE) != OMX_ErrorNone) */
++    /*     return FALSE; */
++    /*   if (gst_omx_port_allocate_buffers (self->enc_out_port) != OMX_ErrorNone) */
++    /*     return FALSE; */
+ 
+-      if (gst_omx_port_wait_enabled (self->enc_out_port,
+-              5 * GST_SECOND) != OMX_ErrorNone)
+-        return FALSE;
+-    }
++    /*   if (gst_omx_port_wait_enabled (self->enc_out_port, */
++    /*           5 * GST_SECOND) != OMX_ErrorNone) */
++    /*     return FALSE; */
++    /* } */
+ 
+     if (gst_omx_port_wait_enabled (self->enc_in_port,
+             5 * GST_SECOND) != OMX_ErrorNone)
+@@ -1309,70 +1323,78 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
+     if (gst_omx_port_mark_reconfigured (self->enc_in_port) != OMX_ErrorNone)
+       return FALSE;
+   } else {
+-    if (!(klass->cdata.hacks & GST_OMX_HACK_NO_DISABLE_OUTPORT)) {
+-      /* Disable output port */
+-      if (gst_omx_port_set_enabled (self->enc_out_port, FALSE) != OMX_ErrorNone)
+-        return FALSE;
+-
+-      if (gst_omx_port_wait_enabled (self->enc_out_port,
+-              1 * GST_SECOND) != OMX_ErrorNone)
+-        return FALSE;
+-
++    /* if (!(klass->cdata.hacks & GST_OMX_HACK_NO_DISABLE_OUTPORT)) { */
++    /*   /\* Disable output port *\/ */
++    /*   if (gst_omx_port_set_enabled (self->enc_out_port, FALSE) != OMX_ErrorNone) */
++    /*     return FALSE; */
++
++    /*   if (gst_omx_port_wait_enabled (self->enc_out_port, */
++    /*           1 * GST_SECOND) != OMX_ErrorNone) */
++    /*     return FALSE; */
++
++    /*   if (gst_omx_component_set_state (self->enc, */
++    /*           OMX_StateIdle) != OMX_ErrorNone) */
++    /*     return FALSE; */
++
++    /*   /\* Need to allocate buffers to reach Idle state *\/ */
++    /*   if (gst_omx_port_allocate_buffers (self->enc_in_port) != OMX_ErrorNone) */
++    /*     return FALSE; */
++    /* } else { */
++    /* kls */
++/*       if (!self->in_port_pool) { */
++/*         if (gst_omx_component_set_state (self->enc, */
++/*                 OMX_StateIdle) != OMX_ErrorNone) */
++/*           return FALSE; */
++
++/*         if (self->use_dmabuf) { */
++/* #ifdef HAVE_VIDEOR_EXT */
++/*           OMXR_MC_VIDEO_EXTEND_ADDRESSTYPE ext_addr; */
++/*           const GList *addr = NULL; */
++/*           gint i; */
++
++/*           ext_addr.nSize = sizeof (OMXR_MC_VIDEO_EXTEND_ADDRESSTYPE); */
++/*           memset (ext_addr.pvVirtAddr, 0, sizeof (ext_addr.pvVirtAddr)); */
++/*           memset (ext_addr.u32HwipAddr, 0, sizeof (ext_addr.u32HwipAddr)); */
++/*           memset (ext_addr.u32AllocateSize, 0, */
++/*               sizeof (ext_addr.u32AllocateSize)); */
++
++/*           for (i = 0; i < port_def.nBufferCountActual; i++) */
++/*             g_array_append_val (self->priv->extaddr_array, ext_addr); */
++
++/*           for (i = 0; i < self->priv->extaddr_array->len; i++) */
++/*             addr = */
++/*                 g_list_append ((GList *) addr, */
++/*                 (gpointer) & g_array_index (self->priv->extaddr_array, */
++/*                     OMXR_MC_VIDEO_EXTEND_ADDRESSTYPE, i)); */
++/*           if (gst_omx_port_use_buffers (self->enc_in_port, */
++/*                   addr) != OMX_ErrorNone) { */
++/*             GST_ERROR_OBJECT (self, */
++/*                 ("Fail to allocate OMXBuffer by using OMX_UseBuffer")); */
++/*             return FALSE; */
++/*           } */
++/* #else */
++/*           GST_ERROR_OBJECT (self, */
++/*               ("dmabuf mode is invalid now due to MC does not support extension address")); */
++/*           return FALSE; */
++/* #endif */
++/*         } else { */
++    /* if is not done in propose_allocation */
++    if (!self->in_port_pool) {
+       if (gst_omx_component_set_state (self->enc,
+               OMX_StateIdle) != OMX_ErrorNone)
+         return FALSE;
+ 
+       /* Need to allocate buffers to reach Idle state */
++      /* Allocate for input port */
+       if (gst_omx_port_allocate_buffers (self->enc_in_port) != OMX_ErrorNone)
+         return FALSE;
+-    } else {
+-      if (!self->in_port_pool) {
+-        if (gst_omx_component_set_state (self->enc,
+-                OMX_StateIdle) != OMX_ErrorNone)
+-          return FALSE;
+ 
+-        if (self->use_dmabuf) {
+-#ifdef HAVE_VIDEOR_EXT
+-          OMXR_MC_VIDEO_EXTEND_ADDRESSTYPE ext_addr;
+-          const GList *addr = NULL;
+-          gint i;
+-
+-          ext_addr.nSize = sizeof (OMXR_MC_VIDEO_EXTEND_ADDRESSTYPE);
+-          memset (ext_addr.pvVirtAddr, 0, sizeof (ext_addr.pvVirtAddr));
+-          memset (ext_addr.u32HwipAddr, 0, sizeof (ext_addr.u32HwipAddr));
+-          memset (ext_addr.u32AllocateSize, 0,
+-              sizeof (ext_addr.u32AllocateSize));
+-
+-          for (i = 0; i < port_def.nBufferCountActual; i++)
+-            g_array_append_val (self->priv->extaddr_array, ext_addr);
+-
+-          for (i = 0; i < self->priv->extaddr_array->len; i++)
+-            addr =
+-                g_list_append ((GList *) addr,
+-                (gpointer) & g_array_index (self->priv->extaddr_array,
+-                    OMXR_MC_VIDEO_EXTEND_ADDRESSTYPE, i));
+-          if (gst_omx_port_use_buffers (self->enc_in_port,
+-                  addr) != OMX_ErrorNone) {
+-            GST_ERROR_OBJECT (self,
+-                ("Fail to allocate OMXBuffer by using OMX_UseBuffer"));
+-            return FALSE;
+-          }
+-#else
+-          GST_ERROR_OBJECT (self,
+-              ("dmabuf mode is invalid now due to MC does not support extension address"));
+-          return FALSE;
+-#endif
+-        } else {
+-          /* Need to allocate buffers to reach Idle state */
+-          if (gst_omx_port_allocate_buffers (self->enc_in_port) !=
+-              OMX_ErrorNone)
+-            return FALSE;
+-        }
+-        if (gst_omx_port_allocate_buffers (self->enc_out_port) != OMX_ErrorNone)
+-          return FALSE;
+-      }
++      /* Allocate for output port */
++      if (gst_omx_port_allocate_buffers (self->enc_out_port) != OMX_ErrorNone)
++        return FALSE;
+     }
+ 
++
+     if (gst_omx_component_get_state (self->enc,
+             GST_CLOCK_TIME_NONE) != OMX_StateIdle)
+       return FALSE;
+@@ -1843,7 +1865,8 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
+             gst_omx_error_to_string (err), err);
+     }
+ 
+-    if (self->in_port_pool) {
++    if ((self->in_port_pool) &&
++        (frame->input_buffer->pool == self->in_port_pool)) {
+       GstMapInfo in_info;
+       gint count = 0;
+       GstOMXBufferPool *pool = GST_OMX_BUFFER_POOL (self->in_port_pool);
+@@ -1852,13 +1875,15 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
+        * encoder
+        */
+       if (!pool->deactivated) {
+-        if (!gst_buffer_map (frame->input_buffer, &in_info, GST_MAP_READ)) {
+-          GST_ERROR_OBJECT (self, "Can not map input buffer");
+-          gst_omx_port_release_buffer (port, buf);
+-          goto flow_error;
++        GstOMXBuffer *omx_buf;
++
++        omx_buf = gst_omx_buffer_get_omxbuffer (frame->input_buffer);
++        if (!omx_buf) {
++          GST_ERROR_OBJECT (self, "Can not get OMXBuffer from GstBuffer");
++          return GST_FLOW_ERROR;
+         }
+ 
+-        if (buf->omx_buf->pBuffer != in_info.data) {
++        if (buf != omx_buf) {
+           gst_omx_port_release_buffer (port, buf);
+           do {
+             acq_ret = gst_omx_port_acquire_buffer (port, &buf);
+@@ -1866,10 +1891,10 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
+               GST_ERROR_OBJECT (self, "Can acquire buffer from input port");
+               return GST_FLOW_ERROR;
+             }
+-            if (buf->omx_buf->pBuffer != in_info.data)
++            if (buf != omx_buf)
+               gst_omx_port_release_buffer (port, buf);
+             count += 1;
+-          } while (buf->omx_buf->pBuffer != in_info.data
++          } while (buf != omx_buf
+               && count < port->port_def.nBufferCountActual * 3);
+         }
+         if (count == port->port_def.nBufferCountActual * 3) {
+@@ -1877,8 +1902,12 @@ gst_omx_video_enc_handle_frame (GstVideoEncoder * encoder,
+               "Can not get target OMXBuffer after 3 times searching");
+           goto flow_error;
+         }
+-        buf->omx_buf->nFilledLen = in_info.size;
+-        gst_buffer_unmap (frame->input_buffer, &in_info);
++        GST_DEBUG_OBJECT (self, "found target OMXBuffer %p", buf);
++        //buf->omx_buf->nFilledLen = gst_buffer_get_size (frame->input_buffer);
++        buf->omx_buf->nFilledLen =
++            buf->omx_buf->nAllocLen - buf->omx_buf->nOffset;
++        GST_DEBUG_OBJECT (self, "set nFilledLen = %d",
++            buf->omx_buf->nFilledLen);
+       }
+     } else if (self->use_dmabuf) {
+ #ifdef HAVE_VIDEOR_EXT
+@@ -2242,6 +2271,8 @@ gst_omx_video_enc_propose_allocation (GstVideoEncoder * encoder,
+       GstAllocator *allocator = NULL;
+       GstAllocationParams params = { 0, };
+ 
++      GST_DEBUG_OBJECT (self, "gst_query_get_n_allocation_pools (query) == 0");
++
+       if (gst_query_get_n_allocation_params (query) > 0)
+         gst_query_parse_nth_allocation_param (query, 0, &allocator, &params);
+       else
+@@ -2268,6 +2299,8 @@ gst_omx_video_enc_propose_allocation (GstVideoEncoder * encoder,
+         return FALSE;
+       }
+ 
++      GST_DEBUG_OBJECT (self, "structure %p", structure);
++
+       GST_OMX_BUFFER_POOL (self->in_port_pool)->allocating = TRUE;
+ 
+       /* Wait for all buffers allocate */
+-- 
+2.7.4
+
