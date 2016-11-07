@@ -2,8 +2,7 @@ require meta-rcar-gen2/include/gles-control.inc
 
 PATCHTOOL_rcar-gen2 = "git"
 
-FILESEXTRAPATHS_prepend := '${THISDIR}/patches:'
-FILESEXTRAPATHS_prepend := '${THISDIR}/files:'
+FILESEXTRAPATHS_prepend := '${THISDIR}/${PN}-${PV}:'
 
 SRC_URI_append = " \
     file://0001-desktop-shell-add-option-to-avoid-creating-the-panel.patch \
