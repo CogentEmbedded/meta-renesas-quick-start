@@ -1,0 +1,48 @@
+#!/bin/sh
+#
+### BEGIN INIT INFO
+# Provides: pulseaudio-server
+# Required-Start: $local_fs $remote_fs
+# Required-Stop: $local_fs $remote_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+### END INIT INFO
+
+killproc() {
+        pid=`/bin/pidof $1`
+        [ "$pid" != "" ] && kill $pid
+}
+
+read CMDLINE < /proc/cmdline
+for x in $CMDLINE; do
+        case $x in
+        pulseaudio=false)
+		echo "pulseaudio disabled"
+		exit 0;
+                ;;
+        esac
+done
+
+case "$1" in
+  start)
+	echo "Starting pulseaudio"
+	start-stop-daemon -S -x pulseaudio -- -D --system --disallow-exit --disallow-module-loading
+  ;;
+
+  stop)
+        echo "Stopping pulseaudio"
+        start-stop-daemon -K -x pulseaudio
+  ;;
+
+  restart)
+	$0 stop
+        sleep 1
+        $0 start
+  ;;
+
+  *)
+        echo "usage: $0 { start | stop | restart }"
+  ;;
+esac
+
+exit 0
