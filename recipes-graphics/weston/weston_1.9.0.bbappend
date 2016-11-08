@@ -10,7 +10,7 @@ SRC_URI_append = " \
 "
 
 EXTRA_OECONF += "--enable-gst-recorder "
-DEPENDS += "media-ctl"
+DEPENDS += "media-ctl gstreamer1.0-plugins-base"
 
 PR="r2"
 
