@@ -73,18 +73,12 @@ RDEPENDS_packagegroup-qt5 =  '${@ " \
     icu libicudata libicuuc libicui18n \
 " if 'qt5' in '${DISTRO_FEATURES}' else ""}'
 
-#    qtwebkit \
-#    qtwebkit-qmlplugins \
-#    qtwebkit-examples-examples \
-#    qtwebengine \
-#    qtwebengine-examples \
-#    qtwebengine-qmlplugins \
-#
 
 RDEPENDS_packagegroup-surroundview = '${@ " \
-    utest-adas \
     spacenavd \
-    sv-videos \
+    libspnav \
+    glm \
+    nlopt \
 " if 'surroundview' in '${DISTRO_FEATURES}' else ""}'
 
 RDEPENDS_packagegroup-opencv-sdk = '${@ " \
