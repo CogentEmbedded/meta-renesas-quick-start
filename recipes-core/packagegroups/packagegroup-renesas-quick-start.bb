@@ -26,7 +26,11 @@ RDEPENDS_packagegroup-common = "\
     e2fsprogs-mke2fs \
     e2fsprogs-tune2fs \
     i2c-tools \
-    openssh-sftp-server  \
+    openssl \
+    socat \
+    strace \
+    ncurses \
+    libudev \
     cpufrequtils \
     tcpdump libpcap \
     bash \
