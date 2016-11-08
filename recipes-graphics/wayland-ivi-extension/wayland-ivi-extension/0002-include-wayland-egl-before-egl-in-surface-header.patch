@@ -1,0 +1,14 @@
+diff --git a/ivi-layermanagement-examples/EGLWLInputEventExample/include/WLEGLSurface.h b/ivi-layermanagement-examples/EGLWLInputEventExample/include/WLEGLSurface.h
+index 577930d..0fad327 100644
+--- a/ivi-layermanagement-examples/EGLWLInputEventExample/include/WLEGLSurface.h
++++ b/ivi-layermanagement-examples/EGLWLInputEventExample/include/WLEGLSurface.h
+@@ -20,8 +20,8 @@
+ #ifndef _WLEGLSURFACE_H_
+ #define _WLEGLSURFACE_H_
+ 
+-#include <EGL/egl.h>
+ #include <wayland-egl.h>
++#include <EGL/egl.h>
+ #include "WLSurface.h"
+ 
+ class WLEGLSurface : public WLSurface
