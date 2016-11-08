@@ -1,0 +1,70 @@
+From 7b30e567552535d9546e34d4fc38337095347224 Mon Sep 17 00:00:00 2001
+From: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+Date: Tue, 13 Sep 2016 15:51:55 +0300
+Subject: [PATCH 2/2] fix cross-compile
+
+
+Signed-off-by: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+---
+ Makefile   |   19 ++++++++++---------
+ reader.cpp |    1 +
+ 2 files changed, 11 insertions(+), 9 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 02d25c7..9bbe82e 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,14 +1,15 @@
+-prefix = /usr/local
+-bindir = $(prefix)/bin
+-CXX = g++
+-CC = gcc
+-CFLAGS = -Wall -pthread
+-LDFLAGS = -g -pthread
++PREFIX ?= /usr
++SBINDIR ?= $(PREFIX)/bin
++CXX ?= g++
++CC ?= gcc
++CFLAGS += -Wall -pthread
++LDFLAGS += -g
++LIBS = -lpthread
+ 
+ SOURCES = main.cpp reader.cpp write.cpp showev.cpp
+ 
+ ifneq ($(inotify),no)
+-	CFLAGS += -DWITH_INOTIFY
++	GCC_FLAGS += -DWITH_INOTIFY
+ endif
+ 
+ all: build netevent devname
+@@ -23,13 +24,13 @@ build/%.o: %.c
+ 	$(CC) $(CFLAGS) -c -o $@ $*.c -MMD -MF build/$*.d -MT $@
+ 
+ netevent: $(patsubst %.cpp,build/%.o,$(SOURCES))
+-	$(CXX) $(LDFLAGS) -o $@ $^
++	$(CXX) $(LDFLAGS) -o $@ $^ $(LIBS)
+ 
+ devname: build/devname.o
+ 	$(CC) -o $@ $^
+ 
+ install: all
+-	install -m 755 -p -t "$(DESTDIR)$(bindir)" netevent devname
++	install -m 755 -p -t "$(DESTDIR)$(SBINDIR)" netevent devname
+ 
+ clean:
+ 	-rm -rf build
+diff --git a/reader.cpp b/reader.cpp
+index 651967a..07fa64a 100644
+--- a/reader.cpp
++++ b/reader.cpp
+@@ -6,6 +6,7 @@
+ #include <arpa/inet.h>
+ #include <stdint.h>
+ #include <unistd.h>
++#include <pthread.h>
+ 
+ int64_t htonll(int64_t value){
+     int num = 42;
+-- 
+1.7.10.4
+
