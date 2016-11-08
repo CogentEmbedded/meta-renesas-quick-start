@@ -1,0 +1,85 @@
+From 4d821fb875f8a9462934b252f5cb206d46128ff3 Mon Sep 17 00:00:00 2001
+From: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+Date: Tue, 9 Sep 2014 06:50:30 +0400
+Subject: [PATCH] Add listen stop info message
+
+Signed-off-by: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+---
+ src/common/wpa_ctrl.h           | 1 +
+ src/p2p/p2p.c                   | 3 +++
+ src/p2p/p2p.h                   | 6 ++++++
+ wpa_supplicant/p2p_supplicant.c | 8 ++++++++
+ 4 files changed, 18 insertions(+)
+
+diff --git a/src/common/wpa_ctrl.h b/src/common/wpa_ctrl.h
+index d91594e..ef24853 100644
+--- a/src/common/wpa_ctrl.h
++++ b/src/common/wpa_ctrl.h
+@@ -152,6 +152,7 @@ extern "C" {
+ #define P2P_EVENT_INVITATION_RECEIVED "P2P-INVITATION-RECEIVED "
+ #define P2P_EVENT_INVITATION_RESULT "P2P-INVITATION-RESULT "
+ #define P2P_EVENT_FIND_STOPPED "P2P-FIND-STOPPED "
++#define P2P_EVENT_LISTEN_STOPPED "P2P-LISTEN-STOPPED "
+ #define P2P_EVENT_PERSISTENT_PSK_FAIL "P2P-PERSISTENT-PSK-FAIL id="
+ #define P2P_EVENT_PRESENCE_RESPONSE "P2P-PRESENCE-RESPONSE "
+ #define P2P_EVENT_NFC_BOTH_GO "P2P-NFC-BOTH-GO "
+diff --git a/src/p2p/p2p.c b/src/p2p/p2p.c
+index 8797576..9059320 100644
+--- a/src/p2p/p2p.c
++++ b/src/p2p/p2p.c
+@@ -183,6 +183,9 @@ void p2p_set_state(struct p2p_data *p2p, int new_state)
+ {
+ 	p2p_dbg(p2p, "State %s -> %s",
+ 		p2p_state_txt(p2p->state), p2p_state_txt(new_state));
++	if ((p2p->state == P2P_LISTEN_ONLY) &&
++		(new_state != P2P_LISTEN_ONLY))
++		p2p->cfg->listen_stopped(p2p->cfg->cb_ctx);
+ 	p2p->state = new_state;
+ 
+ 	if (new_state == P2P_IDLE && p2p->pending_channel) {
+diff --git a/src/p2p/p2p.h b/src/p2p/p2p.h
+index dee79df..05850f8 100644
+--- a/src/p2p/p2p.h
++++ b/src/p2p/p2p.h
+@@ -594,6 +594,12 @@ struct p2p_config {
+ 	void (*find_stopped)(void *ctx);
+ 
+ 	/**
++	 * listen_stopped - Notification of a p2p_listen operation stopping
++	 * @ctx: Callback context from cb_ctx
++	 */
++	void (*listen_stopped)(void *ctx);
++
++	/**
+ 	 * go_neg_req_rx - Notification of a receive GO Negotiation Request
+ 	 * @ctx: Callback context from cb_ctx
+ 	 * @src: Source address of the message triggering this notification
+diff --git a/wpa_supplicant/p2p_supplicant.c b/wpa_supplicant/p2p_supplicant.c
+index 9fc3e6c..30e1439 100644
+--- a/wpa_supplicant/p2p_supplicant.c
++++ b/wpa_supplicant/p2p_supplicant.c
+@@ -1743,6 +1743,13 @@ static void wpas_find_stopped(void *ctx)
+ }
+ 
+ 
++static void wpas_listen_stopped(void *ctx)
++{
++	struct wpa_supplicant *wpa_s = ctx;
++	wpa_msg_global(wpa_s, MSG_INFO, P2P_EVENT_LISTEN_STOPPED);
++}
++
++
+ struct wpas_p2p_listen_work {
+ 	unsigned int freq;
+ 	unsigned int duration;
+@@ -3885,6 +3892,7 @@ int wpas_p2p_init(struct wpa_global *global, struct wpa_supplicant *wpa_s)
+ 	p2p.dev_found = wpas_dev_found;
+ 	p2p.dev_lost = wpas_dev_lost;
+ 	p2p.find_stopped = wpas_find_stopped;
++	p2p.listen_stopped = wpas_listen_stopped;
+ 	p2p.start_listen = wpas_start_listen;
+ 	p2p.stop_listen = wpas_stop_listen;
+ 	p2p.send_probe_resp = wpas_send_probe_resp;
+-- 
+2.1.0
+
