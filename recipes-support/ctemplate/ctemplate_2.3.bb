@@ -5,4 +5,5 @@ SRC_URI[md5sum] = ""
 SRC_URI[sha256sum] = ""
 SRCREV = "r141"
 S = "${WORKDIR}/tags/ctemplate-2.3"
+B = "${WORKDIR}/tags/ctemplate-2.3"
 
