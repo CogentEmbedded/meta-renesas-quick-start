@@ -52,6 +52,7 @@ RDEPENDS_packagegroup-common = "\
     libgstapp-1.0 \
     gstreamer1.0-plugins-base-app \
     udev-rules \
+    netevent \
     ${AVB_RDEPENDS} \
 "
 
