@@ -1,0 +1,30 @@
+OpenEmbedded/Yocto BSP layer for Renesas Electronics's SoCs
+==========
+This layer provides additional support for Renesas Electronics's platforms for use with
+OpenEmbedded and/or Yocto.
+
+Supported Boards/Machines
+=========================
+
+Boards that support:
+
+        - Renesas Electronics Corporation. Wheat (R8A7792)
+
+This layer depends on:
+
+    URI: git://git.yoctoproject.org/poky
+    layers: meta, meta-yocto, meta-yocto-bsp
+    revision: 40376446904ae3529be41737fed9a0b650ed167d
+
+    URI: git://git.linaro.org/openembedded/meta-linaro.git
+    layers: meta-linaro-toolchain
+    revision: 9b1fd178309544dff1f7453e796a9437125bc0d9
+
+    URI: git://git.openembedded.org/meta-openembedded
+    layers: meta-oe
+    revision: 8ab04afbffb4bc5184cfe0655049de6f44269990
+
+    URI: git://github.com/CogentEmbedded/meta-renesas-quick-start
+    layers: meta-renesas-gen2
+    branch: v2.12.0
+
