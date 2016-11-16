@@ -19,6 +19,8 @@ SRCREV = "06f1fe545f2063ae882fc8b66dc07f1ced85d1da"
 
 S = "${WORKDIR}/git"
 
+B = "${S}"
+
 do_install() {
     install -d ${D}${bindir}
 
