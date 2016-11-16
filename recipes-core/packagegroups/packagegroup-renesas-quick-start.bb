@@ -71,7 +71,6 @@ RDEPENDS_packagegroup-qt5 =  '${@ " \
     qtmultimedia-qmlplugins \
     qtsvg \
     qtsvg-plugins \
-    qtimageformats-plugins \
     qtwayland \
     qtwayland-tools \
     qtwayland-plugins \ 
