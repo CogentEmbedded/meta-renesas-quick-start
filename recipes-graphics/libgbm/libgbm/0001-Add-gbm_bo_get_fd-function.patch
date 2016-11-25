@@ -1,0 +1,89 @@
+From 4485b0006317550d48e88e85e15fe78e60fc23b7 Mon Sep 17 00:00:00 2001
+From: Grigory Kletsko <grigory.kletsko@cogentembedded.com>
+Date: Tue, 22 Nov 2016 14:15:56 +0300
+Subject: [PATCH] Add gbm_bo_get_fd() function
+
+---
+ backend_kms.c |  8 ++++++++
+ gbm.c         | 14 ++++++++++++++
+ gbm.h         |  3 +++
+ gbmint.h      |  1 +
+ 4 files changed, 26 insertions(+)
+
+diff --git a/backend_kms.c b/backend_kms.c
+index 830dbcf..4ed8d53 100644
+--- a/backend_kms.c
++++ b/backend_kms.c
+@@ -394,6 +394,13 @@ static int gbm_kms_surface_has_free_buffers(struct gbm_surface *_surface)
+ 	return ((!surface->bo[0]->locked) || (!surface->bo[1]->locked));
+ }
+ 
++static int gbm_kms_bo_get_fd(struct gbm_bo *_bo)
++{
++	struct gbm_kms_bo *bo = (struct gbm_kms_bo*)_bo;
++
++	return bo->fd;
++}
++
+ struct gbm_device kms_gbm_device = {
+ 	.name = "kms",
+ 
+@@ -404,6 +411,7 @@ struct gbm_device kms_gbm_device = {
+ 	.bo_import = gbm_kms_bo_import,
+ 	.bo_write = gbm_kms_bo_write,
+ 	.bo_destroy = gbm_kms_bo_destroy,
++	.bo_get_fd = gbm_kms_bo_get_fd,
+ 
+ 	.surface_create = gbm_kms_surface_create,
+ 	.surface_lock_front_buffer = gbm_kms_surface_lock_front_buffer,
+diff --git a/gbm.c b/gbm.c
+index 8faf331..516a4f5 100644
+--- a/gbm.c
++++ b/gbm.c
+@@ -471,3 +471,17 @@ gbm_surface_has_free_buffers(struct gbm_surface *surf)
+ {
+    return surf->gbm->surface_has_free_buffers(surf);
+ }
++
++/** Get a DMA-BUF file descriptor for the buffer object
++ *
++ * This function returns a DMA-BUF (also known as PRIME) file descriptor
++ * handle for the buffer object.
++ * \param bo The buffer object
++ * \return Returns a file descriptor referring  to the underlying buffer
++ */
++GBM_EXPORT int
++gbm_bo_get_fd(struct gbm_bo *bo)
++{
++   return bo->gbm->bo_get_fd(bo);
++}
++
+diff --git a/gbm.h b/gbm.h
+index 0f44816..81eae26 100644
+--- a/gbm.h
++++ b/gbm.h
+@@ -294,6 +294,9 @@ gbm_surface_has_free_buffers(struct gbm_surface *surface);
+ void
+ gbm_surface_destroy(struct gbm_surface *surface);
+ 
++int
++gbm_bo_get_fd(struct gbm_bo *bo);
++
+ #ifdef __cplusplus
+ }
+ #endif
+diff --git a/gbmint.h b/gbmint.h
+index a467bea..70a8d4a 100644
+--- a/gbmint.h
++++ b/gbmint.h
+@@ -70,6 +70,7 @@ struct gbm_device {
+                                void *buffer, uint32_t usage);
+    int (*bo_write)(struct gbm_bo *bo, const void *buf, size_t data);
+    void (*bo_destroy)(struct gbm_bo *bo);
++   int (*bo_get_fd)(struct gbm_bo *_bo);
+ 
+    struct gbm_surface *(*surface_create)(struct gbm_device *gbm,
+                                          uint32_t width, uint32_t height,
+-- 
+2.7.4
+
