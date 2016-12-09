@@ -1,0 +1,36 @@
+#! /bin/sh
+
+uim="/usr/bin/uim"
+test -x "$uim" || exit 0
+
+case "$1" in
+  start)
+    echo -n "Starting uim-sysfs daemon"
+    modprobe st_drv
+    NODE=`cd /sys; find . | grep kim | grep install`
+    if [ $NODE ]
+    then
+        echo UIM SYSFS Node Found at /sys/$NODE
+    else
+        echo UIM SYSFS Node Not Found
+        rmmod st_drv
+        exit 0
+    fi
+    uim_args="-f `dirname /sys/$NODE`"
+    start-stop-daemon --start --quiet --pidfile /var/run/uim.pid --make-pidfile --exec $uim -- $uim_args &
+    modprobe btwilink
+    echo "."
+    ;;
+  stop)
+    echo -n "Stopping uim-sysfs daemon"
+    start-stop-daemon --stop --quiet --pidfile /var/run/uim.pid
+    rmmod btwilink
+    rmmod st_drv
+    echo "."
+    ;;
+  *)
+    echo "Usage: /etc/init.d/uim-sysfs {start|stop}"
+    exit 1
+esac
+
+exit 0

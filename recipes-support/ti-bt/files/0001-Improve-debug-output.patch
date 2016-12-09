@@ -1,0 +1,125 @@
+From 3dd59ce6ef2bb0470e325be1fc5fb79b50842e31 Mon Sep 17 00:00:00 2001
+From: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+Date: Tue, 13 Dec 2016 19:21:00 +0300
+Subject: [PATCH] Improve debug output
+
+Signed-off-by: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+---
+ uim.c | 51 +++++++++++++++++++++++++++++----------------------
+ 1 file changed, 29 insertions(+), 22 deletions(-)
+
+diff --git a/uim.c b/uim.c
+index 89bafd8..9a58eab 100644
+--- a/uim.c
++++ b/uim.c
+@@ -86,9 +86,10 @@ int read_hci_event(int fd, unsigned char *buf, int size)
+ 
+ 	UIM_START_FUNC();
+ 
+-	UIM_VER(" read_hci_event");
+-	if (size <= 0)
+-		return -1;
++	if (size <= 0) {
++		UIM_VER(" invalid size: %d", size);
++		return -EINVAL;
++	}
+ 
+ 	/* The first byte identifies the packet type. For HCI event packets, it
+ 	 * should be 0x04, so we read until we get to the 0x04. */
+@@ -98,7 +99,8 @@ int read_hci_event(int fd, unsigned char *buf, int size)
+ 			nanosleep(&tm, NULL);
+ 			continue;
+ 		} else if (rd_retry_count >= 4) {
+-			return -1;
++			UIM_VER(" no retry left. nothing readed");
++			return -EBUSY;
+ 		}
+ 
+ 		if (buf[0] == RESP_PREFIX) {
+@@ -110,8 +112,10 @@ int read_hci_event(int fd, unsigned char *buf, int size)
+ 	/* The next two bytes are the event code and parameter total length. */
+ 	while (count < 3) {
+ 		rd = read(fd, buf + count, 3 - count);
+-		if (rd <= 0)
+-			return -1;
++		if (rd <= 0) {
++			UIM_VER(" read failed: %d", rd);
++			return -EINVAL;
++		}
+ 		count += rd;
+ 	}
+ 
+@@ -123,8 +127,10 @@ int read_hci_event(int fd, unsigned char *buf, int size)
+ 
+ 	while ((count - 3) < remain) {
+ 		rd = read(fd, buf + count, remain - (count - 3));
+-		if (rd <= 0)
+-			return -1;
++		if (rd <= 0) {
++			UIM_VER(" failed to read buffer tail: %d", rd);
++			return -EINVAL;
++		}
+ 		count += rd;
+ 	}
+ 
+@@ -139,42 +145,43 @@ int read_hci_event(int fd, unsigned char *buf, int size)
+  */
+ static int read_command_complete(int fd, unsigned short opcode)
+ {
++	int ret = 0;
+ 	command_complete_t resp;
+ 
+ 	UIM_START_FUNC();
+ 
+-	UIM_VER(" Command complete started");
+-	if (read_hci_event(fd, (unsigned char *)&resp, sizeof(resp)) < 0) {
+-		UIM_ERR("Invalid response");
+-		return -1;
++	ret = read_hci_event(fd, (unsigned char *)&resp, sizeof(resp));
++	if (ret < 0) {
++		UIM_ERR("Failed to read response: %d", ret);
++		return ret;
+ 	}
+ 
+ 	/* Response should be an event packet */
+ 	if (resp.uart_prefix != HCI_EVENT_PKT) {
+-		UIM_ERR	("Error in response: not an event packet, 0x%02x!",
+-			 resp.uart_prefix);
+-		return -1;
++		UIM_ERR	("Error in response: not an event packet, 0x%02x != 0x%02x!",
++			 resp.uart_prefix, HCI_EVENT_PKT);
++		return -EINVAL;
+ 	}
+ 
+ 	/* Response should be a command complete event */
+ 	if (resp.hci_hdr.evt != EVT_CMD_COMPLETE) {
+ 		/* event must be event-complete */
+-		UIM_ERR("Error in response: not a cmd-complete event,0x%02x!",
+-			 resp.hci_hdr.evt);
+-		return -1;
++		UIM_ERR("Error in response: not a cmd-complete event,0x%02x != 0x%02x!",
++			 resp.hci_hdr.evt, EVT_CMD_COMPLETE);
++		return -EINVAL;
+ 	}
+ 
+ 	if (resp.hci_hdr.plen < 4) {
+ 		/* plen >= 4 for EVT_CMD_COMPLETE */
+-		UIM_ERR("Error in response: plen is not >= 4, but 0x%02x!",
++		UIM_ERR("Error in response: length < 4, but 0x%02x!",
+ 				resp.hci_hdr.plen);
+-		return -1;
++		return -EINVAL;
+ 	}
+ 
+ 	if (resp.cmd_complete.opcode != (unsigned short)opcode) {
+-		UIM_ERR("Error in response: opcode is 0x%04x, not 0x%04x!",
++		UIM_ERR("Error in response: opcode is 0x%04x != 0x%04x!",
+ 				resp.cmd_complete.opcode, opcode);
+-		return -1;
++		return -EINVAL;
+ 	}
+ 
+ 	UIM_DBG("Command complete done");
+-- 
+1.8.3.1
+

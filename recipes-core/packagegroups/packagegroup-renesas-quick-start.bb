@@ -11,6 +11,8 @@ PACKAGES = " \
 	packagegroup-ptp \
 	packagegroup-perf-test \
 	packagegroup-ivi \
+	packagegroup-bt \
+	packagegroup-wifi \
 "
 
 AVB_RDEPENDS=" \
@@ -133,3 +135,18 @@ RDEPENDS_packagegroup-ivi =  '${@ " \
     wayland-ivi-extension \
 " if 'ivi' in '${DISTRO_FEATURES}' else ""}'
 
+RDEPENDS_packagegroup-bt = '${@ " \
+    ti-bt \
+    ti-bt-firmware \
+    bluez5 \
+    bluez5-testtools \
+    pulseaudio-module-bluez5-device \
+    pulseaudio-module-bluez5-discover \
+    pulseaudio-module-bluetooth-discover \
+    pulseaudio-module-bluetooth-policy \
+" if 'ulcb-kf' in '${MACHINE_FEATURES}' else ""}'
+
+RDEPENDS_packagegroup-wifi = '${@ " \
+    linux-firmware-wl18xx \
+    wireless-tools \
+" if 'ulcb-kf' in '${MACHINE_FEATURES}' else ""}'
