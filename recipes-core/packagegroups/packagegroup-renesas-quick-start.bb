@@ -53,11 +53,12 @@ RDEPENDS_packagegroup-common = "\
     gstreamer1.0-plugins-base-app \
     udev-rules \
     netevent \
+    pulseaudio \
+    pulseaudio-server \
     ${AVB_RDEPENDS} \
 "
 
 RDEPENDS_packagegroup-qt5 =  '${@ " \
-    qtbase-fonts \
     qtbase-plugins \
     qtbase-examples \
     qtdeclarative \

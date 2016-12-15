@@ -150,7 +150,7 @@ index 0000000..2678098
 +
 +install (
 +    TARGETS             ${PROJECT_NAME}
-+    LIBRARY DESTINATION lib/weston
++    LIBRARY DESTINATION lib${LIB_SUFFIX}/weston
 +)
 diff --git a/wl-shell-emulator/README b/wl-shell-emulator/README
 new file mode 100644
