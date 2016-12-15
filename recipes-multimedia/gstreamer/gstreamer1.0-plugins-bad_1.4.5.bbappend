@@ -1,6 +1,7 @@
 FILESEXTRAPATHS_prepend := "${THISDIR}/${PN}-${PV}:"
 
-PACKAGECONFIG_append=" faad"
+DEPENDS += "faad2"
+PACKAGECONFIG_append += "faad"
 
 SRC_URI_append = " \
     file://0001-install-wayland.h-header.patch \
