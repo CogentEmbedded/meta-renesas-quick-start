@@ -54,7 +54,6 @@ RDEPENDS_packagegroup-common = "\
     udev-rules \
     netevent \
     pulseaudio \
-    pulseaudio-server \
     ${AVB_RDEPENDS} \
 "
 
