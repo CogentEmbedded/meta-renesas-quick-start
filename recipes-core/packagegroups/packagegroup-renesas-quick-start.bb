@@ -10,6 +10,7 @@ PACKAGES = " \
 	packagegroup-surroundview \
 	packagegroup-ptp \
 	packagegroup-perf-test \
+	packagegroup-ivi \
 "
 
 AVB_RDEPENDS=" \
@@ -77,7 +78,6 @@ RDEPENDS_packagegroup-qt5 =  '${@ " \
     icu libicudata libicuuc libicui18n \
 " if 'qt5' in '${DISTRO_FEATURES}' else ""}'
 
-
 RDEPENDS_packagegroup-surroundview = '${@ " \
     spacenavd \
     libspnav \
@@ -122,3 +122,8 @@ RDEPENDS_packagegroup-perf-test = '${@ " \
     iperf \
     cpuburn-neon \
 " if 'perf-test' in '${DISTRO_FEATURES}' else ""}'
+
+RDEPENDS_packagegroup-ivi =  '${@ " \
+    wayland-ivi-extension \
+" if 'ivi' in '${DISTRO_FEATURES}' else ""}'
+
