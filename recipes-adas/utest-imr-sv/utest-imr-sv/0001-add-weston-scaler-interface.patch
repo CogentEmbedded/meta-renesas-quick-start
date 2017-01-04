@@ -1,0 +1,481 @@
+From f40dde234cb32ae5270ba26d5b1d0f876cf0d93c Mon Sep 17 00:00:00 2001
+From: Roman Meshkevich <roman.meshkevich@cogentembedded.com>
+Date: Tue, 13 Dec 2016 16:38:37 +0300
+Subject: [PATCH] add weston scaler interface
+
+---
+ CMakeLists.txt                 |   1 +
+ utest/scaler-client-protocol.h | 145 +++++++++++++++++++++++++++++++++++++++++
+ utest/scaler-protocol.c        |  65 ++++++++++++++++++
+ utest/utest-wl-display.c       | 124 ++++++++++++++++++++++++++++++++---
+ 4 files changed, 325 insertions(+), 10 deletions(-)
+ create mode 100644 utest/scaler-client-protocol.h
+ create mode 100644 utest/scaler-protocol.c
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 53b6408..506a6d2 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -109,6 +109,7 @@ file(GLOB APP_C_SRC
+   "utest/utest-compositor.c"
+   "utest/utest-app.c"
+   "utest/utest-main.c"
++  "utest/scaler-protocol.c"
+ )
+ 
+ add_executable(${PROJECT_NAME} ${APP_C_SRC})
+diff --git a/utest/scaler-client-protocol.h b/utest/scaler-client-protocol.h
+new file mode 100644
+index 0000000..d25528f
+--- /dev/null
++++ b/utest/scaler-client-protocol.h
+@@ -0,0 +1,145 @@
++/* 
++ * Copyright © 2013-2014 Collabora, Ltd.
++ * 
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ * 
++ * The above copyright notice and this permission notice (including the next
++ * paragraph) shall be included in all copies or substantial portions of the
++ * Software.
++ * 
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++ * DEALINGS IN THE SOFTWARE.
++ */
++
++#ifndef SCALER_CLIENT_PROTOCOL_H
++#define SCALER_CLIENT_PROTOCOL_H
++
++#ifdef  __cplusplus
++extern "C" {
++#endif
++
++#include <stdint.h>
++#include <stddef.h>
++#include "wayland-client.h"
++
++struct wl_client;
++struct wl_resource;
++
++struct wl_scaler;
++struct wl_surface;
++struct wl_viewport;
++
++extern const struct wl_interface wl_scaler_interface;
++extern const struct wl_interface wl_viewport_interface;
++
++#ifndef WL_SCALER_ERROR_ENUM
++#define WL_SCALER_ERROR_ENUM
++enum wl_scaler_error {
++	WL_SCALER_ERROR_VIEWPORT_EXISTS = 0,
++};
++#endif /* WL_SCALER_ERROR_ENUM */
++
++#define WL_SCALER_DESTROY	0
++#define WL_SCALER_GET_VIEWPORT	1
++
++static inline void
++wl_scaler_set_user_data(struct wl_scaler *wl_scaler, void *user_data)
++{
++	wl_proxy_set_user_data((struct wl_proxy *) wl_scaler, user_data);
++}
++
++static inline void *
++wl_scaler_get_user_data(struct wl_scaler *wl_scaler)
++{
++	return wl_proxy_get_user_data((struct wl_proxy *) wl_scaler);
++}
++
++static inline void
++wl_scaler_destroy(struct wl_scaler *wl_scaler)
++{
++	wl_proxy_marshal((struct wl_proxy *) wl_scaler,
++			 WL_SCALER_DESTROY);
++
++	wl_proxy_destroy((struct wl_proxy *) wl_scaler);
++}
++
++static inline struct wl_viewport *
++wl_scaler_get_viewport(struct wl_scaler *wl_scaler, struct wl_surface *surface)
++{
++	struct wl_proxy *id;
++
++	id = wl_proxy_marshal_constructor((struct wl_proxy *) wl_scaler,
++			 WL_SCALER_GET_VIEWPORT, &wl_viewport_interface, NULL, surface);
++
++	return (struct wl_viewport *) id;
++}
++
++#ifndef WL_VIEWPORT_ERROR_ENUM
++#define WL_VIEWPORT_ERROR_ENUM
++enum wl_viewport_error {
++	WL_VIEWPORT_ERROR_BAD_VALUE = 0,
++};
++#endif /* WL_VIEWPORT_ERROR_ENUM */
++
++#define WL_VIEWPORT_DESTROY	0
++#define WL_VIEWPORT_SET	1
++#define WL_VIEWPORT_SET_SOURCE	2
++#define WL_VIEWPORT_SET_DESTINATION	3
++
++static inline void
++wl_viewport_set_user_data(struct wl_viewport *wl_viewport, void *user_data)
++{
++	wl_proxy_set_user_data((struct wl_proxy *) wl_viewport, user_data);
++}
++
++static inline void *
++wl_viewport_get_user_data(struct wl_viewport *wl_viewport)
++{
++	return wl_proxy_get_user_data((struct wl_proxy *) wl_viewport);
++}
++
++static inline void
++wl_viewport_destroy(struct wl_viewport *wl_viewport)
++{
++	wl_proxy_marshal((struct wl_proxy *) wl_viewport,
++			 WL_VIEWPORT_DESTROY);
++
++	wl_proxy_destroy((struct wl_proxy *) wl_viewport);
++}
++
++static inline void
++wl_viewport_set(struct wl_viewport *wl_viewport, wl_fixed_t src_x, wl_fixed_t src_y, wl_fixed_t src_width, wl_fixed_t src_height, int32_t dst_width, int32_t dst_height)
++{
++	wl_proxy_marshal((struct wl_proxy *) wl_viewport,
++			 WL_VIEWPORT_SET, src_x, src_y, src_width, src_height, dst_width, dst_height);
++}
++
++static inline void
++wl_viewport_set_source(struct wl_viewport *wl_viewport, wl_fixed_t x, wl_fixed_t y, wl_fixed_t width, wl_fixed_t height)
++{
++	wl_proxy_marshal((struct wl_proxy *) wl_viewport,
++			 WL_VIEWPORT_SET_SOURCE, x, y, width, height);
++}
++
++static inline void
++wl_viewport_set_destination(struct wl_viewport *wl_viewport, int32_t width, int32_t height)
++{
++	wl_proxy_marshal((struct wl_proxy *) wl_viewport,
++			 WL_VIEWPORT_SET_DESTINATION, width, height);
++}
++
++#ifdef  __cplusplus
++}
++#endif
++
++#endif
+diff --git a/utest/scaler-protocol.c b/utest/scaler-protocol.c
+new file mode 100644
+index 0000000..c06fd68
+--- /dev/null
++++ b/utest/scaler-protocol.c
+@@ -0,0 +1,65 @@
++/* 
++ * Copyright © 2013-2014 Collabora, Ltd.
++ * 
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ * 
++ * The above copyright notice and this permission notice (including the next
++ * paragraph) shall be included in all copies or substantial portions of the
++ * Software.
++ * 
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++ * DEALINGS IN THE SOFTWARE.
++ */
++
++#include <stdlib.h>
++#include <stdint.h>
++#include "wayland-util.h"
++
++extern const struct wl_interface wl_surface_interface;
++extern const struct wl_interface wl_viewport_interface;
++
++static const struct wl_interface *types[] = {
++	NULL,
++	NULL,
++	NULL,
++	NULL,
++	NULL,
++	NULL,
++	&wl_viewport_interface,
++	&wl_surface_interface,
++};
++
++static const struct wl_message wl_scaler_requests[] = {
++	{ "destroy", "", types + 0 },
++	{ "get_viewport", "no", types + 6 },
++};
++
++WL_EXPORT const struct wl_interface wl_scaler_interface = {
++	"wl_scaler", 2,
++	2, wl_scaler_requests,
++	0, NULL,
++};
++
++static const struct wl_message wl_viewport_requests[] = {
++	{ "destroy", "", types + 0 },
++	{ "set", "ffffii", types + 0 },
++	{ "set_source", "2ffff", types + 0 },
++	{ "set_destination", "2ii", types + 0 },
++};
++
++WL_EXPORT const struct wl_interface wl_viewport_interface = {
++	"wl_viewport", 2,
++	4, wl_viewport_requests,
++	0, NULL,
++};
++
+diff --git a/utest/utest-wl-display.c b/utest/utest-wl-display.c
+index bca72cb..a3c233c 100644
+--- a/utest/utest-wl-display.c
++++ b/utest/utest-wl-display.c
+@@ -40,6 +40,7 @@
+ #include <wayland-cursor.h>
+ #include <gst/video/video-format.h>
+ #include "linux-dmabuf-client-protocol.h"
++#include "scaler-client-protocol.h"
+ #include <libdrm/drm_fourcc.h>
+ 
+ /*******************************************************************************
+@@ -139,6 +140,9 @@ struct display_data
+     /* ....DMA buffers handling interface */
+     struct zlinux_dmabuf       *dmabuf;
+ 
++    /* ...scaling interface */
++    struct wl_scaler           *scaler;
++
+     /* ...input/output device handles */
+     struct wl_list              outputs, inputs;
+ 
+@@ -204,6 +208,9 @@ struct window_data
+     /* ...shell surface */
+     struct wl_shell_surface    *shell;
+ 
++    /* ...scaling viewport */
++    struct wl_viewport         *viewport;
++
+     /* ...cairo device associated with current window context */
+     cairo_device_t             *cairo;
+ 
+@@ -236,8 +243,14 @@ struct window_data
+ /* ...redraw command pending */
+ #define WINDOW_FLAG_REDRAW              (1 << 0)
+ 
++/* ...buffer busyness flag */
++#define WINDOW_FLAG_BUSY                (1 << 1)
++
++/* ...pending redraw request */
++#define WINDOW_FLAG_PENDING             (1 << 2)
++
+ /* ...termination command pending */
+-#define WINDOW_FLAG_TERMINATE           (1 << 1)
++#define WINDOW_FLAG_TERMINATE           (1 << 3)
+ 
+ /*******************************************************************************
+  * Local variables
+@@ -1178,6 +1191,10 @@ static void global_registry_handler(void *data, struct wl_registry *registry, ui
+         display->dmabuf = wl_registry_bind(registry, id, &zlinux_dmabuf_interface, 1);
+         zlinux_dmabuf_add_listener(display->dmabuf, &dmabuf_listener, display);
+     }
++    else if (strcmp(interface, "wl_scaler") == 0)
++    {
++        display->scaler = wl_registry_bind(registry, id, &wl_scaler_interface, 2);
++    }
+ }
+ 
+ /* ...interface removal notification callback */
+@@ -1617,6 +1634,9 @@ window_data_t * window_create(display_data_t *display, window_info_t *info, widg
+     wl_shell_surface_set_toplevel(window->shell);
+     (info->fullscreen ? wl_shell_surface_set_fullscreen(window->shell, WL_SHELL_SURFACE_FULLSCREEN_METHOD_DEFAULT, 0, output->output) : 0);
+ 
++    /* ...get scaling interface */
++    window->viewport = wl_scaler_get_viewport(display->scaler, window->surface);
++
+     /* ...set private data poitner */
+     wl_surface_set_user_data(window->surface, window);
+ 
+@@ -1765,32 +1785,64 @@ int window_get_height(window_data_t *window)
+ /* ...schedule redrawal of the window */
+ void window_schedule_redraw(window_data_t *window)
+ {
++    int     kick = 0;
++
+     /* ...acquire window lock */
+     pthread_mutex_lock(&window->lock);
+ 
+     /* ...check if we don't have a flag already */
+-    if ((window->flags & WINDOW_FLAG_REDRAW) == 0)
++    if ((window->flags & (WINDOW_FLAG_REDRAW | WINDOW_FLAG_PENDING)) == 0)
+     {
+         /* ...set a flag */
+-        window->flags |= WINDOW_FLAG_REDRAW;
+-
+-        /* ...and kick processing thread */
+-        pthread_cond_signal(&window->wait);
++        if ((window->flags & WINDOW_FLAG_BUSY) == 0)
++        {
++            /* ...schedule drawing operation */
++            window->flags ^= WINDOW_FLAG_REDRAW;
++            kick = 1;
++        }
++        else
++        {
++            /* ...drawing cannot start; put pending request */
++            window->flags ^= WINDOW_FLAG_PENDING;
++        }
+ 
+         TRACE(DEBUG, _b("schedule window[%p] redraw"), window);
+     }
+ 
+     /* ...release window access lock */
+     pthread_mutex_unlock(&window->lock);
++
++    /* ...and kick processing thread as needed */
++    (kick ? pthread_cond_signal(&window->wait) : 0);
+ }
+ 
+ /* ...window destruction completion callback */
+ static void __window_sync_callback(void *data, struct wl_callback *callback, uint32_t serial)
+ {
+     window_data_t  *window = data;
+-
++    int             kick = 0;
++
+     TRACE(DEBUG, _b("window[%p]: frame sync callback"), window);
+ 
++    /* ...lock window access */
++    pthread_mutex_lock(&window->lock);
++
++    /* ...clear busy flag */
++    if ((window->flags ^= WINDOW_FLAG_BUSY) & WINDOW_FLAG_PENDING)
++    {
++        /* ...enable drawing operation */
++        window->flags ^= WINDOW_FLAG_PENDING | WINDOW_FLAG_REDRAW;
++
++        /* ...resume window thread */
++        kick = 1;
++    }
++
++    /* ...release buffer lock */
++    pthread_mutex_unlock(&window->lock);
++
++    /* ...kick window thread as needed */
++    (kick ? pthread_cond_signal(&window->wait) : 0);
++
+     /* ...do I need to destroy this callback all the time? - tbd */
+     wl_callback_destroy(callback);
+ }
+@@ -1821,15 +1873,22 @@ void window_draw(window_data_t *window)
+     
+     /* ...submit stuff to the wayland server */
+     wl_surface_damage(window->surface, 0, 0, w->width, w->height);
+-    wl_surface_commit(window->surface);
++
++    /* ...mark window is busy */
++    pthread_mutex_lock(&window->lock);
++    window->flags ^= WINDOW_FLAG_BUSY;
++    pthread_mutex_unlock(&window->lock);
+ 
+     /* ...do I have to wait for a buffer processing? I guess it should be done in window thread */
+-    if ((callback = wl_display_sync(display->display)) != NULL)
++    if ((callback = wl_surface_frame(window->surface)) != NULL)
+     {
+         wl_callback_add_listener(callback, &__window_sync_listener, window);
+     }
+ 
+-    /* ...push pending commands to a server */
++    /* ...commit a change */
++    wl_surface_commit(window->surface);
++
++    /* ...push pending commands to a server (need that? probably no) */
+     wl_display_flush(display->display);
+ 
+     t1 = __get_cpu_cycles();
+@@ -2029,6 +2088,36 @@ void texture_set_view_scale(texture_view_t *vcoord, int x, int y, int w, int h,
+     }
+ }
+ 
++static inline float texture_view_x0(texture_view_t *v)
++{
++    return ((*v)[0] + 1) / 2;
++}
++
++static inline float texture_view_y0(texture_view_t *v)
++{
++    return (1 - (*v)[5]) / 2;
++}
++
++static inline float texture_view_x1(texture_view_t *v)
++{
++    return ((*v)[2] + 1) / 2;
++}
++
++static inline float texture_view_y1(texture_view_t *v)
++{
++    return (1 - (*v)[1]) / 2;
++}
++
++static inline float texture_view_width(texture_view_t *v)
++{
++    return ((*v)[2] - (*v)[0]) / 2;
++}
++
++static inline float texture_view_height(texture_view_t *v)
++{
++    return ((*v)[5] - (*v)[1]) / 2;
++}
++
+ /* ...draw external texture in given view-port */
+ void texture_draw(texture_data_t *texture, texture_view_t *view, texture_crop_t *crop, float alpha)
+ {
+@@ -2061,11 +2150,26 @@ void texture_draw(texture_data_t *texture, texture_view_t *view, texture_crop_t
+     {
+         /* ...attach buffer to the window surface */
+         wl_surface_attach(window->surface, texture->wl_buffer, 0, 0);
++
++        /* ...set scaling interface */
++        wl_viewport_set_destination(window->viewport, window->widget.width, window->widget.height);
++
++
+         wl_surface_damage(window->surface, 0, 0, window->widget.width, window->widget.height);
+         TRACE(DEBUG, _b("wl-buffer %p attached: %d,%d,%d,%d"), texture->wl_buffer, 0, 0, window->widget.width, window->widget.height);
+     }
+     else
+     {
++        float   x = texture_view_x0(view);
++        float   y = texture_view_y0(view);
++        float   w = texture_view_width(view);
++        float   h = texture_view_height(view);
++
++        /* ...we have a viewport specified */
++        wl_viewport_set_destination(window->viewport, w, h);
++        wl_surface_attach(window->surface, texture->wl_buffer, x, y);
++        wl_surface_damage(window->surface, x, y, w, h);
++
+         /* ...we need to set up scaler, and set subsurface */
+         TRACE(DEBUG, _b("only full-size drawing is supported"));
+     }
+-- 
+2.7.4
+

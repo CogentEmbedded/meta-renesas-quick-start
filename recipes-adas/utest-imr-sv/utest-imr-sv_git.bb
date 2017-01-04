@@ -26,7 +26,8 @@ RDEPENDS_${PN} = "\
 "
 
 SRC_URI="gitsm://github.com/CogentEmbedded/imr-sv-utest.git;protocol=https;branch=master \
-	 file://run-utest-imr-sv \
+	file://0001-add-weston-scaler-interface.patch \
+	file://run-utest-imr-sv \
 "
 SRCREV="12de3bb4ba24f09f615746629e5c2966336158c2"
 PV = "1.0+git${SRCPV}"
