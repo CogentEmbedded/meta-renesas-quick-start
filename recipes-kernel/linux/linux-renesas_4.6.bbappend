@@ -13,3 +13,6 @@ SRC_URI_append_wheat = "\
     file://touch_multi.cfg \
 "
 
+SRC_URI_append_ttardrive = "\
+     file://touch_multi.cfg \
+"
