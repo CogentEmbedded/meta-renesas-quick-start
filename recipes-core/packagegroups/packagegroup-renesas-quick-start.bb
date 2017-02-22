@@ -83,6 +83,7 @@ RDEPENDS_packagegroup-surroundview = '${@ " \
     libspnav \
     glm \
     nlopt \
+    gstreamer1.0-omx \
 " if 'surroundview' in '${DISTRO_FEATURES}' else ""}'
 
 RDEPENDS_packagegroup-opencv-sdk = '${@ " \
