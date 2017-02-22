@@ -10,12 +10,12 @@
 
 case "$1" in
 "start")
-	# insert multimedia modules
-        /sbin/modprobe -q -a mmngr mmngrbuf s3ctl uvcs_cmn vspm fdpm uvcs_drv
+    # insert multimedia modules   
+        /sbin/modprobe -q -a mmngr mmngrbuf vspm vspm_if uvcs_drv
 	;;
 stop)
 	# remove multimedia modules
-        /sbin/modprobe -q -r -a mmngr mmngrbuf s3ctl uvcs_cmn vspm fdpm uvcs_drv
+        /sbin/modprobe -q -r -a mmngr mmngrbuf vspm vspm_if uvcs_drv
 	;;
 reload|restart)
 	$0 stop
