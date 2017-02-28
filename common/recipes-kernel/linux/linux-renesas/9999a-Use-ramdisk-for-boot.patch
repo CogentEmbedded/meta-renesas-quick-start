@@ -1,0 +1,25 @@
+From 4656d9e1bf82d11a651c2f117cf063f2a0d3f476 Mon Sep 17 00:00:00 2001
+From: Petr Nechaev <petr.nechaev@cogentembedded.com>
+Date: Mon, 27 Jun 2016 23:40:18 -0400
+Subject: [PATCH 1/1] Use ramdisk for boot
+
+---
+ arch/arm/boot/dts/r8a7790-stout-view.dts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm/boot/dts/r8a7790-stout-view.dts b/arch/arm/boot/dts/r8a7790-stout-view.dts
+index 8a88191..e6ecf84 100644
+--- a/arch/arm/boot/dts/r8a7790-stout-view.dts
++++ b/arch/arm/boot/dts/r8a7790-stout-view.dts
+@@ -24,7 +24,7 @@
+ 	};
+ 
+ 	chosen {
+-		bootargs = "console=ttySC0,38400 ignore_loglevel rw root=/dev/nfs ip=dhcp vmalloc=384M video=HDMI-A-1:1024x768-32@60";
++		bootargs = "console=ttySC0,38400 ignore_loglevel rw root=/dev/ram ramdisk_start=0x4f000000 ramdisk_size=1024 rootwait ip=none vmalloc=384M";
+ 	};
+ 
+ 	memory@40000000 {
+-- 
+2.5.5
+
