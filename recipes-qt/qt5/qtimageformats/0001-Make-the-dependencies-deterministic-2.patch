@@ -1,0 +1,30 @@
+From be5e606a8636fe069942daaa0c0617af5b7ef707 Mon Sep 17 00:00:00 2001
+From: Andrey Dolnikov <andrey.dolnikov@cogentembedded.com>
+Date: Wed, 1 Mar 2017 16:09:09 +0300
+Subject: [PATCH] Make the dependencies deterministic 2.
+
+---
+ src/plugins/imageformats/imageformats.pro | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/src/plugins/imageformats/imageformats.pro b/src/plugins/imageformats/imageformats.pro
+index 08f5151..6382178 100644
+--- a/src/plugins/imageformats/imageformats.pro
++++ b/src/plugins/imageformats/imageformats.pro
+@@ -3,9 +3,10 @@ SUBDIRS = \
+     dds \
+     icns \
+     tga \
+-    tiff \
+-    wbmp \
+-    webp
++    wbmp
++
++OE_LIBWEBP_ENABLED:SUBDIRS += webp
++OE_LIBTIFF_ENABLED:SUBDIRS += tiff
+ 
+ config_libmng: SUBDIRS += mng
+ config_jasper {
+-- 
+2.7.4
+
