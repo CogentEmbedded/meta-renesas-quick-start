@@ -1,0 +1,28 @@
+From e6bcf4714d5bebb2bd8106acd6bff20e73e0046a Mon Sep 17 00:00:00 2001
+From: Andrey Dolnikov <andrey.dolnikov@cogentembedded.com>
+Date: Wed, 1 Mar 2017 15:42:14 +0300
+Subject: [PATCH] configure.ac: Fix wayland-less configuration.
+
+---
+ configure.ac | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/configure.ac b/configure.ac
+index 4a0f96a..51e23ea 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -1987,6 +1987,11 @@ AG_GST_CHECK_FEATURE(WAYLAND, [wayland sink], wayland , [
+   AC_SUBST(WAYLAND_PROTOCOLS_DATADIR, $PKG_CONFIG_SYSROOT_DIR$ac_wayland_protocols_pkgdatadir)
+ ])
+ 
++if test "x$USE_WAYLAND" = "xno"; then
++  HAVE_WAYLAND_KMS="no"
++  AM_CONDITIONAL(USE_WAYLAND_KMS, test "x$HAVE_WAYLAND_KMS" = "xyes")
++fi
++
+ AC_PATH_PROG([wayland_scanner], [wayland-scanner])
+ 
+ dnl **** WebP ****
+-- 
+2.7.4
+
