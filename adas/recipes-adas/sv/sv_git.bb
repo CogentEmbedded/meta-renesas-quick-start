@@ -19,7 +19,7 @@ RDEPENDS_${PN} = "\
 "
 
 SRC_URI = "git://github.com/CogentEmbedded/sv-utest.git;branch=master"
-SRCREV = "4e3cccd04db5161dec7d9202011c6a6321fc3dcb"
+SRCREV = "b4a713bf0504fd4c95fa3b6b6aebe50b33638513"
 S = "${WORKDIR}/git"
 PV = "git+${SRCREV}"
 
