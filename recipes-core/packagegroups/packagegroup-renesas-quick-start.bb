@@ -21,6 +21,12 @@ AVB_RDEPENDS=" \
     gstreamer1.0-plugins-ugly-mad \
 "
 
+QT_WAYLAND_PKGS = '${@ " \
+    qtwayland \
+    qtwayland-tools \
+    qtwayland-plugins \
+" if 'wayland' in '${DISTRO_FEATURES}' else ""}'
+
 RDEPENDS_packagegroup-common = "\
     e2fsprogs \
     e2fsprogs-e2fsck \
@@ -72,9 +78,7 @@ RDEPENDS_packagegroup-qt5 =  '${@ " \
     qtmultimedia-qmlplugins \
     qtsvg \
     qtsvg-plugins \
-    qtwayland \
-    qtwayland-tools \
-    qtwayland-plugins \ 
+    ${QT_WAYLAND_PKGS} \
     icu libicudata libicuuc libicui18n \
 " if 'qt5' in '${DISTRO_FEATURES}' else ""}'
 
