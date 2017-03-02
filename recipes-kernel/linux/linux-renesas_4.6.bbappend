@@ -9,6 +9,11 @@ SRC_URI_append_h3ulcb = "\
      file://can.cfg \
 "
 
+SRC_URI_append_m3ulcb = "\
+     file://touch_multi.cfg \
+     file://can.cfg \
+"
+
 SRC_URI_append_wheat = "\
     file://touch_multi.cfg \
 "
