@@ -12,6 +12,7 @@ DEPENDS = " \
     nlopt \
     libeigen \
     pango \
+    libspnav \
 "
 RDEPENDS_${PN} = "\
     gles-user-module \
