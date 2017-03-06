@@ -1,0 +1,13 @@
+[Unit]
+Description=Spacenavd startup
+RequiresMountsFor=/run
+
+[Service]
+User=root
+EnvironmentFile=-/etc/default/spacenavd
+ExecStart=/usr/bin/spacenavd $OPTARGS
+Type=forking
+
+[Install]
+WantedBy=multi-user.target
+
