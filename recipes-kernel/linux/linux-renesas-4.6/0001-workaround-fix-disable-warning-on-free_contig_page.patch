@@ -1,0 +1,24 @@
+From b9636d81325b25ff0b23f37e949e10b5f8ffcfba Mon Sep 17 00:00:00 2001
+From: Grigory Kletsko <grigory.kletsko@cogentembedded.com>
+Date: Tue, 7 Mar 2017 18:43:37 +0300
+Subject: [PATCH] workaround fix: disable warning on free_contig_page
+
+---
+ mm/page_alloc.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+index c1069ef..4ebc871 100644
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -7136,7 +7136,6 @@ void free_contig_range(unsigned long pfn, unsigned nr_pages)
+ 		count += page_count(page) != 1;
+ 		__free_page(page);
+ 	}
+-	WARN(count != 0, "%d pages are still in use!\n", count);
+ }
+ #endif
+ 
+-- 
+2.7.4
+
