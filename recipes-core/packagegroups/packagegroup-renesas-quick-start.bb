@@ -88,6 +88,7 @@ RDEPENDS_packagegroup-surroundview = '${@ " \
     glm \
     nlopt \
     gstreamer1.0-omx \
+    yaml-cpp \
 " if 'surroundview' in '${DISTRO_FEATURES}' else ""}'
 
 RDEPENDS_packagegroup-opencv-sdk = '${@ " \

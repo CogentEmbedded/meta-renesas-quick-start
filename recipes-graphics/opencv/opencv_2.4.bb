@@ -29,20 +29,23 @@ EXTRA_OECMAKE = "-DPYTHON_NUMPY_INCLUDE_DIR:PATH=${STAGING_LIBDIR}/${PYTHON_DIR}
                  ${@base_conditional("libdir", "/usr/lib32", "-DLIB_SUFFIX=32 -DPYTHON_PACKAGES_PATH:PATH=lib32/python2.7/site-packages", "", d)} \
 "
 
-PACKAGECONFIG ??= "neon gstreamer jpeg png tiff"
+PACKAGECONFIG ??= "eigen jpeg png tiff v4l libv4l gstreamer qt5 opengl neon"
+
 PACKAGECONFIG[eigen] = "-DWITH_EIGEN=ON,-DWITH_EIGEN=OFF,libeigen,"
 PACKAGECONFIG[gtk] = "-DWITH_GTK=ON,-DWITH_GTK=OFF,gtk+,"
 PACKAGECONFIG[jpeg] = "-DWITH_JPEG=ON,-DWITH_JPEG=OFF,jpeg,"
 PACKAGECONFIG[libav] = "-DWITH_FFMPEG=ON,-DWITH_FFMPEG=OFF,libav,"
 PACKAGECONFIG[png] = "-DWITH_PNG=ON,-DWITH_PNG=OFF,libpng,"
 PACKAGECONFIG[tiff] = "-DWITH_TIFF=ON,-DWITH_TIFF=OFF,tiff,"
+PACKAGECONFIG[libv4l] = "-DWITH_LIBV4L=ON,-DWITH_LIBV4L=OFF,v4l-utils,"
 PACKAGECONFIG[v4l] = "-DWITH_V4L=ON,-DWITH_V4L=OFF,v4l-utils,"
 PACKAGECONFIG[jasper] = "-DBUILD_JASPER=ON,-DBUILD_JASPER=OFF,"
 PACKAGECONFIG[neon] = "-DENABLE_NEON=ON,-DENABLE_NEON=OFF,,"
 PACKAGECONFIG[gstreamer] = "-DWITH_GSTREAMER=ON,-DWITH_GSTREAMER=OFF,gstreamer1.0,"
 PACKAGECONFIG[opengl] = "-DWITH_OPENGL=ON,-DWITH_OPENGL=OFF,,"
+PACKAGECONFIG[qt5] = "-DWITH_QT=ON,-DWITH_QT=OFF,qtbase,"
 
-inherit distutils-base pkgconfig cmake
+inherit distutils-base pkgconfig cmake ${@bb.utils.contains( 'DISTRO_FEATURES', 'qt5', 'cmake_qt5','', d)}
 
 export BUILD_SYS
 export HOST_SYS

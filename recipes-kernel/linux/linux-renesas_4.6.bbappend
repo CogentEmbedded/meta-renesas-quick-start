@@ -21,6 +21,6 @@ SRC_URI_append_wheat = "\
 SRC_URI_append_ttardrive = "\
      file://touch_multi.cfg \
 "
-SRC_URI_append = " \
-     file://0001-workaround-fix-disable-warning-on-free_contig_page.patch \
-"
+# SRC_URI_append = " 
+#      file://0001-workaround-fix-disable-warning-on-free_contig_page.patch 
+#"
