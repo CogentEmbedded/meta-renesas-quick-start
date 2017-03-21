@@ -2,7 +2,8 @@ FILESEXTRAPATHS_append := '${THISDIR}/${PN}:'
 
 PACKAGECONFIG += " networkd resolved "
 
-SRC_URI += "file://eth0.network"
+SRC_URI += "file://eth0.network \
+	    file://dummy0.network"
 
 FILES_${PN} += "${sysconfdir}/systemd/network/*"
  

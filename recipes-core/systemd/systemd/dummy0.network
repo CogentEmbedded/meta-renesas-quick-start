@@ -1,0 +1,6 @@
+[Match]
+Name=dummy0
+
+[Network] 
+DHCP=no
+
