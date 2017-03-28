@@ -7,6 +7,7 @@ IMAGE_INSTALL_append = " \
 	packagegroup-perf-test \
 	packagegroup-bt \
 	packagegroup-wifi \
+	packagegroup-radio \
 "
 
 CONFLICT_DISTRO_FEATURES = "x11"

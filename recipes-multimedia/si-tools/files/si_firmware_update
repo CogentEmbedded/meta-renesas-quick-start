@@ -1,0 +1,7 @@
+#!/bin/sh
+si_init
+si_flash -i -e
+si_flash -i -o 0x002000 -w /lib/firmware/si46xx/rom00_patch.016.bin
+si_flash -i -o 0x006000 -w /lib/firmware/si46xx/fmhd_radio_4_0_12.bif
+si_flash -i -o 0x086000 -w /lib/firmware/si46xx/dab_radio_4_0_5.bif
+si_flash -i -o 0x106000 -w /lib/firmware/si46xx/amhd_radio_2_0_11.bif

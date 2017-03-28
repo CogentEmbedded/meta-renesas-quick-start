@@ -13,6 +13,7 @@ PACKAGES = " \
 	packagegroup-ivi \
 	packagegroup-bt \
 	packagegroup-wifi \
+	packagegroup-radio \
 "
 
 AVB_RDEPENDS=" \
@@ -149,4 +150,8 @@ RDEPENDS_packagegroup-bt = '${@ " \
 RDEPENDS_packagegroup-wifi = '${@ " \
     linux-firmware-wl18xx \
     wireless-tools \
+" if 'ulcb-kf' in '${MACHINE_FEATURES}' else ""}'
+
+RDEPENDS_packagegroup-radio = '${@ " \
+    si-tools \
 " if 'ulcb-kf' in '${MACHINE_FEATURES}' else ""}'

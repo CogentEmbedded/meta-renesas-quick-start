@@ -1,0 +1,13 @@
+#!/bin/sh
+
+#RST PCA@21 (base = 325) + 7
+echo 332 > /sys/class/gpio/export
+echo out > /sys/class/gpio/gpio332/direction
+
+#RST = 0
+echo 0   > /sys/class/gpio/gpio332/value
+#sleep 1
+#RST = 1
+echo 1   > /sys/class/gpio/gpio332/value
+
+echo 332 > /sys/class/gpio/unexport
