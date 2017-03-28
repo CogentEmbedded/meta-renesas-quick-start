@@ -1,7 +1,8 @@
 SUMMARY = "UIM tool for WL18xx module"
 SECTION = "misc"
 
-LICENSE = "CLOSED"
+LICENSE = "GPLv2"
+LIC_FILES_CHKSUM = "file://uim.c;beginline=3;endline=16;md5=ee2f4f9fa92404f383fc3e6315b9dda3"
 
 inherit update-rc.d
 INITSCRIPT_NAME="uim-sysfs"
