@@ -1,5 +1,9 @@
 FILESEXTRAPATHS_prepend := "${THISDIR}/${PN}-${LINUX_VERSION}:"
 
+SRC_URI_append = "\
+     file://cma.cfg \
+"
+
 SRC_URI_append_salvator-x = "\
      file://touch_multi.cfg \
      file://can.cfg \
