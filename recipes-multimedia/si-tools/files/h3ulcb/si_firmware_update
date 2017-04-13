@@ -1,0 +1,9 @@
+#!/bin/sh
+SI_ARGS="/dev/i2c-11 0x65"
+
+#si_init
+si_flash ${SI_ARGS} -i -e
+si_flash ${SI_ARGS} -i -o 0x002000 -w /lib/firmware/si46xx/rom00_patch.016.bin
+si_flash ${SI_ARGS} -i -o 0x006000 -w /lib/firmware/si46xx/fmhd_radio_4_0_12.bif
+si_flash ${SI_ARGS} -i -o 0x086000 -w /lib/firmware/si46xx/dab_radio_4_0_5.bif
+si_flash ${SI_ARGS} -i -o 0x106000 -w /lib/firmware/si46xx/amhd_radio_2_0_11.bif

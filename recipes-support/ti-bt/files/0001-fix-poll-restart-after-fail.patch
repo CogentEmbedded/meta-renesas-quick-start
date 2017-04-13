@@ -1,0 +1,52 @@
+From c4b8eca95c37d728c39c57811d975c50900605fd Mon Sep 17 00:00:00 2001
+From: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+Date: Tue, 31 May 2016 19:50:27 +0300
+Subject: [PATCH] fix poll restart after fail
+
+also add some delay before starting speaking with BT
+
+Signed-off-by: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+---
+ uim.c |    5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/uim.c b/uim.c
+index 6bde5ca..89bafd8 100644
+--- a/uim.c
++++ b/uim.c
+@@ -286,6 +286,8 @@ int st_uart_config(unsigned char install)
+ 
+ 	UIM_START_FUNC();
+ 
++	usleep(100 * 1000);
++
+ 	if (install == '1') {
+ 		memset(buf, 0, UART_DEV_NAME_LEN);
+ 		fd = open(DEV_NAME_SYSFS, O_RDONLY);
+@@ -375,6 +377,7 @@ int st_uart_config(unsigned char install)
+ 
+ 			/* Read the response for the Change speed command */
+ 			if (read_command_complete(dev_fd, HCI_HDR_OPCODE) < 0) {
++				tcflush(dev_fd, TCIOFLUSH);
+ 				close(dev_fd);
+ 				return -1;
+ 			}
+@@ -534,7 +537,6 @@ int main(int argc, char *argv[])
+ 		return -1;
+ 	}
+ 
+-RE_POLL:
+ 	/* read to start proper poll */
+ 	err = read(st_fd, &install, 1);
+ 	/* special case where bluetoothd starts before the UIM, and UIM
+@@ -547,6 +549,7 @@ RE_POLL:
+ 
+ 	UIM_DBG("begin polling...");
+ 
++RE_POLL:
+ 	memset(&p, 0, sizeof(p));
+ 	p.fd = st_fd;
+ 	p.events = POLLERR | POLLPRI;
+-- 
+1.7.10.4
+
