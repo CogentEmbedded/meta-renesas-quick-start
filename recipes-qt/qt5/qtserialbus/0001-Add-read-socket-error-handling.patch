@@ -1,0 +1,33 @@
+From ebcccda0a5494827dae161df90717e92ae5a1fd7 Mon Sep 17 00:00:00 2001
+From: Dmitry Shifrin <dmitry.shifrin@cogentembedded.com>
+Date: Mon, 30 Jan 2017 11:11:06 +0300
+Subject: [PATCH] Add read socket error handling
+
+---
+ src/plugins/canbus/socketcan/socketcanbackend.cpp | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/src/plugins/canbus/socketcan/socketcanbackend.cpp b/src/plugins/canbus/socketcan/socketcanbackend.cpp
+index 87c466e..04d6545 100644
+--- a/src/plugins/canbus/socketcan/socketcanbackend.cpp
++++ b/src/plugins/canbus/socketcan/socketcanbackend.cpp
+@@ -579,8 +579,15 @@ void SocketCanBackend::readSocket()
+ 
+         bytesReceived = ::read(canSocket, &frame, sizeof(frame));
+ 
+-        if (bytesReceived <= 0) {
++        if (bytesReceived == 0) {
+             break;
++	} else if (bytesReceived < 0) {
++	    int err = errno;
++	    if (err != EAGAIN && err != EWOULDBLOCK && err != EINTR){
++	    	setError(qt_error_string(err),
++                     QCanBusDevice::CanBusError::UnknownError);
++	    }
++	    break;
+         } else if (bytesReceived != CANFD_MTU && bytesReceived != CAN_MTU) {
+             setError(tr("ERROR SocketCanBackend: incomplete CAN frame"),
+                      QCanBusDevice::CanBusError::ReadError);
+-- 
+1.9.1
+
