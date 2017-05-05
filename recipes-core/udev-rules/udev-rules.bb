@@ -22,6 +22,7 @@ SRC_URI := " \
     file://52-logitech-wheel.rules \
     file://53-vsp2.rules \
     file://54-jpu.rules \
+    file://55-vin.rules \
 "
 
 do_install_append() {
@@ -30,4 +31,5 @@ do_install_append() {
     install -m 0644 ${WORKDIR}/52-logitech-wheel.rules ${D}${sysconfdir}/udev/rules.d/
     install -m 0644 ${WORKDIR}/53-vsp2.rules ${D}${sysconfdir}/udev/rules.d/
     install -m 0644 ${WORKDIR}/54-jpu.rules ${D}${sysconfdir}/udev/rules.d/
+    install -m 0644 ${WORKDIR}/55-vin.rules ${D}${sysconfdir}/udev/rules.d/
 }
