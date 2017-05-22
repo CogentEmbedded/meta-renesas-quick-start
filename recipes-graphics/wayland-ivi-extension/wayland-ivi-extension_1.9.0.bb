@@ -5,11 +5,11 @@ BUGTRACKER = "http://bugs.genivi.org/enter_bug.cgi?product=Wayland%20IVI%20Exten
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=1f1a56bb2dadf5f2be8eb342acf4ed79"
 
-PR = "r2"
+PR = "r3"
 
 SRCREV = "851078b7bf499c334e8799f5cee181f1156f9907"
 
-SRC_URI = "git://git.projects.genivi.org/${PN}.git \
+SRC_URI = "git://github.com/GENIVI/${PN}.git \
     file://0002-include-wayland-egl-before-egl-in-surface-header.patch \
     file://0003-Wayland-IVI-Extension-patch-for-wl-shell-emulator.patch \
     "
