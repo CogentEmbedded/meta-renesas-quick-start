@@ -1,0 +1,29 @@
+From 961301d5f9c8369f96b26d9255d249c8c26a8903 Mon Sep 17 00:00:00 2001
+From: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+Date: Fri, 26 May 2017 13:07:10 +0300
+Subject: [PATCH] Fix possible cross-compile issue
+
+Signed-off-by: Andrey Gusakov <andrey.gusakov@cogentembedded.com>
+---
+ uim.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/uim.c b/uim.c
+index 197bfd4..61a89a5 100644
+--- a/uim.c
++++ b/uim.c
+@@ -367,8 +367,10 @@ int st_uart_config(unsigned char install)
+ 			UIM_VER("Setting speed to %ld", cust_baud_rate);
+ 			/* Forming the packet for Change speed command */
+ 			cmd.uart_prefix = HCI_COMMAND_PKT;
++			/* FIXME: endian */
+ 			cmd.hci_hdr.opcode = HCI_HDR_OPCODE;
+-			cmd.hci_hdr.plen = sizeof(unsigned long);
++			cmd.hci_hdr.plen = sizeof(uint32_t);
++			/* FIXME: endian */
+ 			cmd.speed = cust_baud_rate;
+ 
+ 			/* Writing the change speed command to the UART
+-- 
+2.13.0
+

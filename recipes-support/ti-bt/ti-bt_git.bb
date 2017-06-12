@@ -14,6 +14,7 @@ PV = "0.1"
 SRC_URI = "git://git.ti.com/ti-bt/uim.git;protocol=git \
     file://0001-fix-poll-restart-after-fail.patch \
     file://0001-Improve-debug-output.patch \
+    file://0002-Fix-possible-cross-compile-issue.patch \
     file://uim-sysfs"
 SRCREV = "a75f45be2d5c74fc1dd913d08afc30f09a230aa9"
 
