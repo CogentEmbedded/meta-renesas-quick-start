@@ -99,26 +99,19 @@ RDEPENDS_packagegroup-opencv-sdk = '${@ " \
     opencv-apps \
     opencv-samples \
     opencv-dbg \
-    opencv-staticdev \
-    python-opencv \
     libopencv-calib3d \
-    libopencv-contrib \
     libopencv-core \
     libopencv-features2d \
     libopencv-flann \
-    libopencv-gpu \
     libopencv-highgui \
     libopencv-imgproc \
-    libopencv-legacy \
     libopencv-ml \
-    libopencv-nonfree \
     libopencv-objdetect \
     libopencv-photo \
     libopencv-stitching \
     libopencv-superres \
     libopencv-video \
     libopencv-videostab \
-    libopencv-ocl  \
     gstreamer1.0-plugins-base-app \
 " if 'opencv-sdk' in '${DISTRO_FEATURES}' else ""}'
 
