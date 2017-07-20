@@ -3,6 +3,7 @@ FILESEXTRAPATHS_prepend := "${THISDIR}/${PN}-${LINUX_VERSION}:"
 SRC_URI_append = "\
      file://cma.cfg \
      file://usbserial.cfg \
+     file://raid.cfg \
 "
 
 SRC_URI_append_salvator-x = "\
