@@ -79,6 +79,7 @@ RDEPENDS_packagegroup-qt5 =  '${@ " \
     qtmultimedia \
     qtmultimedia-plugins \
     qtmultimedia-qmlplugins \
+    qtserialbus \
     qtsvg \
     qtsvg-plugins \
     ${QT_WAYLAND_PKGS} \
