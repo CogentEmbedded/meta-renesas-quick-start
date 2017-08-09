@@ -1,0 +1,8 @@
+[Unit]
+Description=Weston Activation Socket
+
+[Socket]
+ListenStream=/run/user/root/wayland-0
+
+[Install]
+WantedBy=sockets.target
