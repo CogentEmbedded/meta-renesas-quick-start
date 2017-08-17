@@ -1,0 +1,152 @@
+From 9020db94390efd1b229dc36f808c9b763358481a Mon Sep 17 00:00:00 2001
+From: Johan Klokkhammer Helsing <johan.helsing@qt.io>
+Date: Thu, 13 Oct 2016 12:04:04 +0200
+Subject: [PATCH] Client: Respect QWindow::screen() when maximizing/setting
+ fullscreen
+
+When maximizing on wl_shell and setting fullscreen on wl_shell and xdg_shell,
+inform the compositor about which output we want the surface to be placed on.
+
+Task-number: QTBUG-54883
+Change-Id: I58867d8b8dde9167405fe5b4e6d12fafa2271a2b
+---
+ src/client/qwaylandshellsurface_p.h   | 5 +++--
+ src/client/qwaylandwindow.cpp         | 7 +++++--
+ src/client/qwaylandwlshellsurface.cpp | 9 +++++----
+ src/client/qwaylandwlshellsurface_p.h | 4 ++--
+ src/client/qwaylandxdgsurface.cpp     | 7 ++++---
+ src/client/qwaylandxdgsurface_p.h     | 4 ++--
+ 6 files changed, 21 insertions(+), 15 deletions(-)
+
+diff --git a/src/client/qwaylandshellsurface_p.h b/src/client/qwaylandshellsurface_p.h
+index 79f65b1..17d1802 100644
+--- a/src/client/qwaylandshellsurface_p.h
++++ b/src/client/qwaylandshellsurface_p.h
+@@ -68,6 +68,7 @@ namespace QtWaylandClient {
+ 
+ class QWaylandWindow;
+ class QWaylandInputDevice;
++class QWaylandScreen;
+ 
+ class Q_WAYLAND_CLIENT_EXPORT QWaylandShellSurface : public QObject
+ {
+@@ -96,8 +97,8 @@ public:
+     inline QWaylandWindow *window() { return m_window; }
+ 
+ protected:
+-    virtual void setMaximized() {}
+-    virtual void setFullscreen() {}
++    virtual void setMaximized(QWaylandScreen *screen) {Q_UNUSED(screen); }
++    virtual void setFullscreen(QWaylandScreen *screen) { Q_UNUSED(screen); }
+     virtual void setNormal() {}
+     virtual void setMinimized() {}
+ 
+diff --git a/src/client/qwaylandwindow.cpp b/src/client/qwaylandwindow.cpp
+index 59c446b..8cc727e 100644
+--- a/src/client/qwaylandwindow.cpp
++++ b/src/client/qwaylandwindow.cpp
+@@ -844,13 +844,16 @@ bool QWaylandWindow::setWindowStateInternal(Qt::WindowState state)
+     // here. We use then this mState variable.
+     mState = state;
+ 
++    QScreen *screen = window()->screen();
++    QWaylandScreen* waylandScreen = screen ? static_cast<QWaylandScreen *>(screen->handle()) : nullptr;
++
+     if (mShellSurface) {
+         switch (state) {
+             case Qt::WindowFullScreen:
+-                mShellSurface->setFullscreen();
++                mShellSurface->setFullscreen(waylandScreen);
+                 break;
+             case Qt::WindowMaximized:
+-                mShellSurface->setMaximized();
++                mShellSurface->setMaximized(waylandScreen);
+                 break;
+             case Qt::WindowMinimized:
+                 mShellSurface->setMinimized();
+diff --git a/src/client/qwaylandwlshellsurface.cpp b/src/client/qwaylandwlshellsurface.cpp
+index 3527015..a110e67 100644
+--- a/src/client/qwaylandwlshellsurface.cpp
++++ b/src/client/qwaylandwlshellsurface.cpp
+@@ -123,18 +123,19 @@ void QWaylandWlShellSurface::sendProperty(const QString &name, const QVariant &v
+         m_extendedWindow->updateGenericProperty(name, value);
+ }
+ 
+-void QWaylandWlShellSurface::setMaximized()
++void QWaylandWlShellSurface::setMaximized(QWaylandScreen *screen)
+ {
+     m_maximized = true;
+     m_size = m_window->window()->geometry().size();
+-    set_maximized(0);
++    set_maximized(screen ? screen->output() : nullptr);
+ }
+ 
+-void QWaylandWlShellSurface::setFullscreen()
++void QWaylandWlShellSurface::setFullscreen(QWaylandScreen *screen)
+ {
+     m_fullscreen = true;
+     m_size = m_window->window()->geometry().size();
+-    set_fullscreen(WL_SHELL_SURFACE_FULLSCREEN_METHOD_DEFAULT, 0, 0);
++    auto s = screen ? screen->output() : nullptr;
++    set_fullscreen(WL_SHELL_SURFACE_FULLSCREEN_METHOD_DEFAULT, 0, s);
+ }
+ 
+ void QWaylandWlShellSurface::setNormal()
+diff --git a/src/client/qwaylandwlshellsurface_p.h b/src/client/qwaylandwlshellsurface_p.h
+index ef732ef..976eacc 100644
+--- a/src/client/qwaylandwlshellsurface_p.h
++++ b/src/client/qwaylandwlshellsurface_p.h
+@@ -93,8 +93,8 @@ public:
+     void sendProperty(const QString &name, const QVariant &value) Q_DECL_OVERRIDE;
+ 
+ private:
+-    void setMaximized() Q_DECL_OVERRIDE;
+-    void setFullscreen() Q_DECL_OVERRIDE;
++    void setMaximized(QWaylandScreen *screen) override;
++    void setFullscreen(QWaylandScreen *screen) override;
+     void setNormal() Q_DECL_OVERRIDE;
+     void setMinimized() Q_DECL_OVERRIDE;
+ 
+diff --git a/src/client/qwaylandxdgsurface.cpp b/src/client/qwaylandxdgsurface.cpp
+index 4f9d8cf..310a84e 100644
+--- a/src/client/qwaylandxdgsurface.cpp
++++ b/src/client/qwaylandxdgsurface.cpp
+@@ -96,16 +96,17 @@ void QWaylandXdgSurface::move(QWaylandInputDevice *inputDevice)
+          inputDevice->serial());
+ }
+ 
+-void QWaylandXdgSurface::setMaximized()
++void QWaylandXdgSurface::setMaximized(QWaylandScreen *screen)
+ {
++    Q_UNUSED(screen);
+     if (!m_maximized)
+         set_maximized();
+ }
+ 
+-void QWaylandXdgSurface::setFullscreen()
++void QWaylandXdgSurface::setFullscreen(QWaylandScreen *screen)
+ {
+     if (!m_fullscreen)
+-        set_fullscreen(Q_NULLPTR);
++        set_fullscreen(screen ? screen->output() : nullptr);
+ }
+ 
+ void QWaylandXdgSurface::setNormal()
+diff --git a/src/client/qwaylandxdgsurface_p.h b/src/client/qwaylandxdgsurface_p.h
+index 27decab..5215c34 100644
+--- a/src/client/qwaylandxdgsurface_p.h
++++ b/src/client/qwaylandxdgsurface_p.h
+@@ -102,8 +102,8 @@ public:
+     bool isMaximized() const { return m_maximized; }
+ 
+ private:
+-    void setMaximized() Q_DECL_OVERRIDE;
+-    void setFullscreen() Q_DECL_OVERRIDE;
++    void setMaximized(QWaylandScreen *screen) override;
++    void setFullscreen(QWaylandScreen *screen) override;
+     void setNormal() Q_DECL_OVERRIDE;
+     void setMinimized() Q_DECL_OVERRIDE;
+ 
+-- 
+2.7.4
+
