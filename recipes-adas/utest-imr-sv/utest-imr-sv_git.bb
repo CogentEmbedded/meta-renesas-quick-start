@@ -29,7 +29,7 @@ SRC_URI="gitsm://github.com/CogentEmbedded/imr-sv-utest.git;protocol=https;branc
 	file://0001-add-weston-scaler-interface.patch \
 	file://run-utest-imr-sv \
 "
-SRCREV="12de3bb4ba24f09f615746629e5c2966336158c2"
+SRCREV="ba0b331823dcf1661089344d26e7d61c1699f475"
 PV = "1.0+git${SRCPV}"
 S = "${WORKDIR}/git/"
 
